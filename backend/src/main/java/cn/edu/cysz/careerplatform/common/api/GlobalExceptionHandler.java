@@ -18,7 +18,7 @@ public class GlobalExceptionHandler {
 	ResponseEntity<ApiError> handleValidation(MethodArgumentNotValidException exception, HttpServletRequest request) {
 		Map<String, String> fieldErrors = new LinkedHashMap<>();
 		for (FieldError fieldError : exception.getBindingResult().getFieldErrors()) {
-			fieldErrors.putIfAbsent(fieldError.getField(), fieldError.getDefaultMessage());
+			fieldErrors.putIfAbsent(fieldError.getField(), "Invalid value");
 		}
 
 		ApiError error = new ApiError(
@@ -27,5 +27,15 @@ public class GlobalExceptionHandler {
 				fieldErrors,
 				(String) request.getAttribute("traceId"));
 		return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+	}
+
+	@ExceptionHandler(Exception.class)
+	ResponseEntity<ApiError> handleUnexpected(Exception exception, HttpServletRequest request) {
+		ApiError error = new ApiError(
+				"INTERNAL_ERROR",
+				"Internal server error",
+				Map.of(),
+				(String) request.getAttribute("traceId"));
+		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
 	}
 }
