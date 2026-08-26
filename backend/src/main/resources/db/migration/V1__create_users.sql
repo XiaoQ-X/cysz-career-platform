@@ -1,0 +1,15 @@
+CREATE TABLE user_account (
+  id BINARY(16) NOT NULL,
+  username VARCHAR(64) NOT NULL,
+  password_hash VARCHAR(100) NOT NULL,
+  display_name VARCHAR(80) NOT NULL,
+  role VARCHAR(16) NOT NULL,
+  status VARCHAR(16) NOT NULL DEFAULT 'ACTIVE',
+  token_version INT NOT NULL DEFAULT 0,
+  created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  updated_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_user_account_username (username),
+  CONSTRAINT chk_user_role CHECK (role IN ('STUDENT','TEACHER','ADMIN')),
+  CONSTRAINT chk_user_status CHECK (status IN ('ACTIVE','DISABLED'))
+);

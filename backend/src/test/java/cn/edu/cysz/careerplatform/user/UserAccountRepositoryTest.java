@@ -1,26 +1,27 @@
-package cn.edu.cysz.careerplatform;
+package cn.edu.cysz.careerplatform.user;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.ApplicationContext;
-import org.springframework.security.provisioning.InMemoryUserDetailsManager;
-import org.springframework.test.context.ActiveProfiles;
+import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.context.ActiveProfiles;
 import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
-@SpringBootTest
+@DataJpaTest
 @Testcontainers
 @ActiveProfiles("test")
-class CareerPlatformApplicationTests {
+class UserAccountRepositoryTest {
 
 	@Container
 	static final MySQLContainer<?> mysql = new MySQLContainer<>("mysql:8.4");
+
+	@Autowired
+	UserAccountRepository repository;
 
 	@DynamicPropertySource
 	static void configureDataSource(DynamicPropertyRegistry registry) {
@@ -29,17 +30,11 @@ class CareerPlatformApplicationTests {
 		registry.add("spring.datasource.password", mysql::getPassword);
 	}
 
-	@Autowired
-	private ApplicationContext applicationContext;
-
 	@Test
-	void contextLoads() {
-	}
+	void findsActiveUserCaseInsensitively() {
+		repository.save(UserAccount.create("Student20260001", "hash", "张同学", UserRole.STUDENT));
 
-	@Test
-	void doesNotRegisterSpringBootsGeneratedInMemoryUser() {
-		assertTrue(applicationContext.getBeansOfType(InMemoryUserDetailsManager.class).isEmpty(),
-				"the bootstrap application must not register Spring Boot's generated default user");
+		assertThat(repository.findByUsernameIgnoreCase("student20260001")).get()
+				.extracting(UserAccount::getRole).isEqualTo(UserRole.STUDENT);
 	}
-
 }

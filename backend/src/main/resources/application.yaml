@@ -1,0 +1,13 @@
+spring:
+  application:
+    name: career-platform
+  datasource:
+    url: ${DB_URL:jdbc:mysql://localhost:3307/career_platform?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC}
+    username: ${DB_USERNAME:career_app}
+    password: ${DB_PASSWORD:career_local}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    enabled: true
