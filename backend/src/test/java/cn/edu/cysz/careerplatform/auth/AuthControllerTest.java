@@ -1,9 +1,12 @@
 package cn.edu.cysz.careerplatform.auth;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -11,8 +14,14 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.Base64;
 import java.util.HexFormat;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import jakarta.servlet.http.Cookie;
 
@@ -26,6 +35,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpHeaders;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
@@ -58,6 +68,9 @@ class AuthControllerTest {
 	@Autowired
 	Clock clock;
 
+	@Autowired
+	PasswordEncoder passwordEncoder;
+
 	@Test
 	void loginReturnsAccessTokenAndHttpOnlyRefreshCookie() throws Exception {
 		MvcResult result = login("student", "Student123!");
@@ -71,6 +84,7 @@ class AuthControllerTest {
 			.andExpect(jsonPath("$.data.user.role").value("STUDENT"))
 			.andExpect(cookie().httpOnly(REFRESH_COOKIE, true))
 			.andExpect(cookie().sameSite(REFRESH_COOKIE, "Strict"))
+			.andExpect(cookie().secure(REFRESH_COOKIE, true))
 			.andExpect(cookie().path(REFRESH_COOKIE, "/api/v1/auth"))
 			.andExpect(cookie().maxAge(REFRESH_COOKIE, 604800));
 	}
@@ -187,6 +201,169 @@ class AuthControllerTest {
 				.andExpect(jsonPath("$.code").value("INVALID_REFRESH_TOKEN"));
 	}
 
+	@Test
+	void acceptsAnExplicitTrustedBrowserOrigin() throws Exception {
+		mvc.perform(post("/api/v1/auth/login")
+				.header("Origin", "http://localhost:3000")
+				.header("Sec-Fetch-Site", "same-site")
+				.contentType(APPLICATION_JSON)
+				.content("{\"username\":\"student\",\"password\":\"Student123!\"}"))
+			.andExpect(status().isOk());
+	}
+
+	@Test
+	void rejectsCrossSiteOriginBeforeCreatingASession() throws Exception {
+		long sessionsBefore = refreshSessions.count();
+
+		mvc.perform(post("/api/v1/auth/login")
+				.header("Origin", "https://evil.example.test")
+				.header("Sec-Fetch-Site", "cross-site")
+				.contentType(APPLICATION_JSON)
+				.content("{\"username\":\"student\",\"password\":\"Student123!\"}"))
+			.andExpect(status().isForbidden())
+			.andExpect(jsonPath("$.code").value("AUTH_REQUEST_REJECTED"))
+			.andExpect(header().doesNotExist(HttpHeaders.SET_COOKIE));
+
+		assertThat(refreshSessions.count()).isEqualTo(sessionsBefore);
+	}
+
+	@Test
+	void rejectsAnUntrustedSameSiteSiblingOriginBeforeCreatingASession() throws Exception {
+		long sessionsBefore = refreshSessions.count();
+
+		mvc.perform(post("/api/v1/auth/login")
+				.header("Origin", "https://evil.example.test")
+				.header("Sec-Fetch-Site", "same-site")
+				.contentType(APPLICATION_JSON)
+				.content("{\"username\":\"student\",\"password\":\"Student123!\"}"))
+			.andExpect(status().isForbidden())
+			.andExpect(jsonPath("$.code").value("AUTH_REQUEST_REJECTED"))
+			.andExpect(header().doesNotExist(HttpHeaders.SET_COOKIE));
+
+		assertThat(refreshSessions.count()).isEqualTo(sessionsBefore);
+	}
+
+	@Test
+	void temporarySecurityBridgePermitsOnlyTheThreePostAuthRoutes() throws Exception {
+		mvc.perform(get("/api/v1/auth/login"))
+				.andExpect(status().isForbidden());
+		mvc.perform(post("/api/v1/auth/other"))
+				.andExpect(status().isForbidden());
+		mvc.perform(post("/api/v1/auth/login/extra"))
+				.andExpect(status().isForbidden());
+	}
+
+	@Test
+	void malformedRefreshTokensAreRejectedBeforeSessionLookupOrMutation() throws Exception {
+		long sessionsBefore = refreshSessions.count();
+
+		mvc.perform(post("/api/v1/auth/refresh").cookie(refreshCookie("too-short")))
+				.andExpect(status().isUnauthorized())
+				.andExpect(jsonPath("$.code").value("INVALID_REFRESH_TOKEN"));
+		mvc.perform(post("/api/v1/auth/refresh").cookie(refreshCookie("A".repeat(44))))
+				.andExpect(status().isUnauthorized())
+				.andExpect(jsonPath("$.code").value("INVALID_REFRESH_TOKEN"));
+
+		assertThat(refreshSessions.count()).isEqualTo(sessionsBefore);
+	}
+
+	@Test
+	void duplicateRefreshCookiesAreRejectedDeterministically() throws Exception {
+		long sessionsBefore = refreshSessions.count();
+		String valid = validRefreshFixture();
+
+		mvc.perform(post("/api/v1/auth/refresh")
+				.cookie(refreshCookie(valid), refreshCookie(valid)))
+			.andExpect(status().isUnauthorized())
+			.andExpect(jsonPath("$.code").value("INVALID_REFRESH_TOKEN"));
+
+		assertThat(refreshSessions.count()).isEqualTo(sessionsBefore);
+	}
+
+	@Test
+	void logoutRemainsIdempotentAndClearsCookieForMalformedInput() throws Exception {
+		long sessionsBefore = refreshSessions.count();
+
+		mvc.perform(post("/api/v1/auth/logout").cookie(refreshCookie("not-a-refresh-token")))
+				.andExpect(status().isOk())
+				.andExpect(cookie().maxAge(REFRESH_COOKIE, 0))
+				.andExpect(cookie().httpOnly(REFRESH_COOKIE, true))
+				.andExpect(cookie().sameSite(REFRESH_COOKIE, "Strict"));
+
+		assertThat(refreshSessions.count()).isEqualTo(sessionsBefore);
+
+		mvc.perform(post("/api/v1/auth/logout")
+				.cookie(refreshCookie(validRefreshFixture()), refreshCookie(validRefreshFixture())))
+				.andExpect(status().isOk())
+				.andExpect(cookie().maxAge(REFRESH_COOKIE, 0));
+		assertThat(refreshSessions.count()).isEqualTo(sessionsBefore);
+	}
+
+	@Test
+	void rejectsUsernameLongerThanTheDatabaseColumnBeforeCreatingASession() throws Exception {
+		long sessionsBefore = refreshSessions.count();
+
+		mvc.perform(post("/api/v1/auth/login")
+				.contentType(APPLICATION_JSON)
+				.content("{\"username\":\"" + "u".repeat(65) + "\",\"password\":\"Student123!\"}"))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+
+		assertThat(refreshSessions.count()).isEqualTo(sessionsBefore);
+	}
+
+	@Test
+	void rejectsOnlyUnreasonablyLargePasswordsWithoutAddingANarrowPasswordPolicy() throws Exception {
+		long sessionsBefore = refreshSessions.count();
+
+		mvc.perform(post("/api/v1/auth/login")
+				.contentType(APPLICATION_JSON)
+				.content("{\"username\":\"student\",\"password\":\"" + "p".repeat(4097) + "\"}"))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+
+		assertThat(refreshSessions.count()).isEqualTo(sessionsBefore);
+	}
+
+	@Test
+	void insecureCookiesCannotBeConfiguredOutsideAnExplicitLocalProfile() {
+		assertThatThrownBy(() -> new AuthController(null, false, "prod"))
+				.isInstanceOf(IllegalStateException.class);
+		new AuthController(null, false, "local");
+	}
+
+	@Test
+	void concurrentRefreshAttemptsAllowExactlyOneSingleUseRotation() throws Exception {
+		String username = "race-" + UUID.randomUUID();
+		UserAccount user = users.save(UserAccount.create(username, passwordEncoder.encode("Race123!"), "Race User", UserRole.STUDENT));
+		String oldRaw = cookieValue(login(username, "Race123!"));
+		ExecutorService executor = Executors.newFixedThreadPool(2);
+		CountDownLatch start = new CountDownLatch(1);
+		Future<MvcResult> first = executor.submit(() -> concurrentRefresh(start, oldRaw));
+		Future<MvcResult> second = executor.submit(() -> concurrentRefresh(start, oldRaw));
+
+		try {
+			start.countDown();
+			MvcResult firstResult = first.get(10, TimeUnit.SECONDS);
+			MvcResult secondResult = second.get(10, TimeUnit.SECONDS);
+			int successful = (firstResult.getResponse().getStatus() == 200 ? 1 : 0)
+					+ (secondResult.getResponse().getStatus() == 200 ? 1 : 0);
+
+			assertThat(successful).isEqualTo(1);
+			assertThat(firstResult.getResponse().getStatus() == 401
+					|| secondResult.getResponse().getStatus() == 401).isTrue();
+			assertThat(refreshSessions.countByUserIdAndRevokedAtIsNullAndExpiresAtAfter(user.getId(), Instant.now(clock)))
+				.isEqualTo(1);
+		} finally {
+			executor.shutdownNow();
+		}
+	}
+
+	private MvcResult concurrentRefresh(CountDownLatch start, String raw) throws Exception {
+		assertThat(start.await(5, TimeUnit.SECONDS)).isTrue();
+		return mvc.perform(post("/api/v1/auth/refresh").cookie(refreshCookie(raw))).andReturn();
+	}
+
 	private MvcResult login(String username, String password) throws Exception {
 		return mvc.perform(post("/api/v1/auth/login")
 				.contentType(APPLICATION_JSON)
@@ -203,6 +380,11 @@ class AuthControllerTest {
 
 	private Cookie refreshCookie(String value) {
 		return new Cookie(REFRESH_COOKIE, value);
+	}
+
+	private String validRefreshFixture() {
+		return Base64.getUrlEncoder().withoutPadding().encodeToString(
+				"task-4-valid-refresh-fixture-32!".getBytes(StandardCharsets.UTF_8));
 	}
 
 	private String jsonValue(MvcResult result, String path) throws Exception {

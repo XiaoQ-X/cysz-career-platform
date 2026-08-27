@@ -16,3 +16,4 @@ app:
   auth:
     jwt-secret: ${JWT_SIGNING_KEY:}
     refresh-cookie-secure: ${REFRESH_COOKIE_SECURE:true}
+    trusted-origins: ${AUTH_TRUSTED_ORIGINS:}

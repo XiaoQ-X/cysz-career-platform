@@ -62,6 +62,10 @@ public class AuthService {
 		String tokenHash = sha256(rawRefreshToken);
 		RefreshSession current = refreshSessions.findByTokenHashForUpdate(tokenHash)
 				.orElseThrow(InvalidRefreshTokenException::new);
+		if (!MessageDigest.isEqual(tokenHash.getBytes(StandardCharsets.US_ASCII),
+				current.getTokenHash().getBytes(StandardCharsets.US_ASCII))) {
+			throw new InvalidRefreshTokenException();
+		}
 		Instant now = clock.instant();
 		if (!current.isUsableAt(now)) {
 			throw new InvalidRefreshTokenException();

@@ -1,16 +1,19 @@
 package cn.edu.cysz.careerplatform.auth;
 
 import java.time.Duration;
+import java.util.Arrays;
+import java.util.regex.Pattern;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
-import org.springframework.web.bind.annotation.CookieValue;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -26,19 +29,38 @@ public class AuthController {
 
 	static final String REFRESH_COOKIE = "career_refresh";
 	private static final String REFRESH_COOKIE_PATH = "/api/v1/auth";
+	private static final Pattern GENERATED_REFRESH_TOKEN = Pattern.compile("[A-Za-z0-9_-]{43}");
 
 	private final AuthService authService;
+	private final AuthRequestPolicy requestPolicy;
 	private final boolean refreshCookieSecure;
 
+	@Autowired
 	public AuthController(AuthService authService,
-			@Value("${app.auth.refresh-cookie-secure:true}") boolean refreshCookieSecure) {
+			AuthRequestPolicy requestPolicy,
+			@Value("${app.auth.refresh-cookie-secure:true}") boolean refreshCookieSecure,
+			@Value("${spring.profiles.active:}") String activeProfiles) {
 		this.authService = authService;
+		this.requestPolicy = requestPolicy;
 		this.refreshCookieSecure = refreshCookieSecure;
+		if (!refreshCookieSecure && !hasExplicitLocalProfile(activeProfiles)) {
+			throw new IllegalStateException("Insecure refresh cookies require an explicit local profile");
+		}
+	}
+
+	public AuthController(AuthService authService, boolean refreshCookieSecure, String activeProfiles) {
+		this.authService = authService;
+		this.requestPolicy = null;
+		this.refreshCookieSecure = refreshCookieSecure;
+		if (!refreshCookieSecure && !hasExplicitLocalProfile(activeProfiles)) {
+			throw new IllegalStateException("Insecure refresh cookies require an explicit local profile");
+		}
 	}
 
 	@PostMapping("/login")
 	public ApiResponse<AuthResponse> login(@Valid @RequestBody LoginRequest request,
 			HttpServletResponse response, HttpServletRequest servletRequest) {
+		requestPolicy.enforce(servletRequest);
 		AuthTokens tokens = authService.login(request.username(), request.password().toCharArray());
 		setRefreshCookie(response, tokens.refreshToken(), AuthService.REFRESH_TOKEN_LIFETIME);
 		return ApiResponse.of(toResponse(tokens), traceId(servletRequest));
@@ -46,8 +68,9 @@ public class AuthController {
 
 	@PostMapping("/refresh")
 	public ApiResponse<AuthResponse> refresh(
-			@CookieValue(name = REFRESH_COOKIE, required = false) String refreshToken,
 			HttpServletResponse response, HttpServletRequest servletRequest) {
+		requestPolicy.enforce(servletRequest);
+		String refreshToken = readRefreshCookie(servletRequest);
 		AuthTokens tokens = authService.refresh(refreshToken);
 		setRefreshCookie(response, tokens.refreshToken(), AuthService.REFRESH_TOKEN_LIFETIME);
 		return ApiResponse.of(toResponse(tokens), traceId(servletRequest));
@@ -55,8 +78,14 @@ public class AuthController {
 
 	@PostMapping("/logout")
 	public ApiResponse<Void> logout(
-			@CookieValue(name = REFRESH_COOKIE, required = false) String refreshToken,
 			HttpServletResponse response, HttpServletRequest servletRequest) {
+		requestPolicy.enforce(servletRequest);
+		String refreshToken = null;
+		try {
+			refreshToken = readRefreshCookie(servletRequest);
+		} catch (AuthService.InvalidRefreshTokenException ignored) {
+			// Logout remains idempotent and still clears the cookie.
+		}
 		authService.logout(refreshToken);
 		setRefreshCookie(response, "", Duration.ZERO);
 		return ApiResponse.of(null, traceId(servletRequest));
@@ -83,7 +112,35 @@ public class AuthController {
 		return (String) request.getAttribute("traceId");
 	}
 
-	public record LoginRequest(@NotBlank String username, @NotBlank String password) {
+	private String readRefreshCookie(HttpServletRequest request) {
+		jakarta.servlet.http.Cookie[] cookies = request.getCookies();
+		String value = null;
+		int matches = 0;
+		if (cookies != null) {
+			for (jakarta.servlet.http.Cookie cookie : cookies) {
+				if (REFRESH_COOKIE.equals(cookie.getName())) {
+					matches++;
+					value = cookie.getValue();
+				}
+			}
+		}
+		if (matches != 1 || value == null || !GENERATED_REFRESH_TOKEN.matcher(value).matches()) {
+			if (matches == 0) {
+				return null;
+			}
+			throw new AuthService.InvalidRefreshTokenException();
+		}
+		return value;
+	}
+
+	private boolean hasExplicitLocalProfile(String activeProfiles) {
+		return Arrays.stream(activeProfiles.split(","))
+				.map(String::trim)
+				.anyMatch(profile -> profile.equals("local") || profile.equals("test") || profile.equals("e2e"));
+	}
+
+	public record LoginRequest(@NotBlank @Size(max = 64) String username,
+			@NotBlank @Size(max = 4096) String password) {
 	}
 
 	public record AuthResponse(String accessToken, UserResponse user) {

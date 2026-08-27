@@ -56,3 +56,49 @@ All 20 backend tests passed: 7 authentication tests, 2 application-context tests
 ## Commit
 
 Commit subject: `feat: add secure session authentication`
+
+## Fix round 1/5
+
+### Takeover and RED evidence
+
+The preserved Task 4 implementation and RED tests were kept in place. This round added tests before the corresponding production changes. The boundary-input tests were deliberately run with the new size constraints absent: both failed with HTTP 401 instead of the expected HTTP 400, proving the missing validation behavior rather than a setup failure. The initial review-focused compile also failed only on the expected missing production API surface (the repository active-session count query and the controller constructor needed by the security-guard test). No plan document was created or modified.
+
+### Findings addressed
+
+1. Cookie-authenticated POST requests now pass an explicit request policy. Exact configured origins are required when an Origin header is present, `Sec-Fetch-Site: cross-site` is rejected, and requests without browser metadata remain deliberately supported for non-browser clients. The test profile explicitly lists trusted local/application origins; the default configuration is blank, so startup fails closed rather than accepting a production wildcard. Accepted local origin, cross-site origin, and untrusted same-site sibling origin are covered. Rejected requests return `AUTH_REQUEST_REJECTED` before controller parsing or service mutation, with no replacement cookie.
+
+2. The temporary security bridge permits only POST `/api/v1/auth/login`, `/refresh`, and `/logout`; all other methods and every other `/api/v1/auth/**` path are denied. MockMvc covers GET login, an unlisted POST endpoint, and a nested login path. CSRF remains exempted/disabled for these stateless JSON auth endpoints as required by the brief; final authorization remains Task 5 scope.
+
+3. Unexpected exceptions now create a server-side sanitized log record containing the trace ID, exception type, and first stack location, without the throwable message or request data. The log-capture test injects a fake secret into an exception message and verifies that trace/type/location are present while the secret is absent. Existing safe API errors and trace IDs remain unchanged.
+
+4. Login usernames are bounded at 64 characters, and passwords are nonblank with a generous 4096-character transport bound. Refresh cookies must be exactly 43 unpadded Base64URL characters, matching 32 random bytes. Cookie parsing is deterministic: missing is treated as absent, duplicate names and malformed/oversized values are rejected before service/database lookup, and logout remains idempotent while clearing the canonical cookie. Tests verify malformed, oversized, duplicate, and invalid logout inputs do not mutate sessions.
+
+5. Refresh cookies remain Secure by default. `Secure=false` is accepted only for explicitly named `local`, `test`, or `e2e` profiles; any other profile, including production, fails construction. The normal login response asserts the Secure attribute, and a unit test covers the production guard.
+
+6. Refresh rotation retains the transactional pessimistic row lock and constant-time hash comparison. A bounded, latch-coordinated concurrent MySQL test races two refresh requests over one cookie and verifies exactly one success, one rejection, and one usable unrevoked replacement. It uses `Future.get` timeouts and no sleeps; the run completed without deadlock or timeout.
+
+### Commands and output
+
+- `./mvnw '-Dtest=AuthControllerTest,GlobalExceptionHandlerLoggingTest' test` — `BUILD SUCCESS`; 19 tests, 0 failures/errors (AuthControllerTest 18/18; logging 1/1).
+- `./mvnw -Dtest=AuthControllerTest test` — `BUILD SUCCESS`; 18 tests, 0 failures/errors.
+- `./mvnw test` — `BUILD SUCCESS`; 32 tests, 0 failures/errors. This included the MySQL-backed repository tests and a Testcontainers MySQL 8.4 context with Flyway V1/V2 migration success.
+- `git diff --check` — no whitespace errors before staging. Final staged diff check will be run before commit.
+
+### Security invariants and mutations reviewed
+
+- Origin rejection occurs before refresh-cookie parsing and before login/refresh/logout service calls; rejected browser requests cannot rotate, revoke, or create a session.
+- The bridge cannot accidentally expose another auth verb or path while Task 5 is pending.
+- Raw passwords, refresh values, hashes, signing keys, cookie headers, request bodies, and exception messages are not placed in the new operational log record or API errors.
+- Refresh material is format-checked before repository access; only its SHA-256 digest is persisted. Row locking and a transaction make the old token single-use under concurrent rotation.
+- Cookie attributes remain HttpOnly, SameSite Strict, path-scoped, seven-day lifetime, and Secure unless an explicit non-production profile opts out. Production defaults fail closed for both missing trusted origins and insecure cookies.
+
+### Self-review and concerns
+
+- No functional blocker remains for this review round.
+- The temporary bridge intentionally denies all non-auth traffic and must be replaced by Task 5's final JWT request filter and role authorization; no Task 5 authorization was added here.
+- Browser clients must use one of the explicitly configured trusted origins. Deployments must provide `AUTH_TRUSTED_ORIGINS` and a sufficiently strong `JWT_SIGNING_KEY`; missing values fail closed.
+- Maven/JDK emitted the existing Mockito dynamic-agent warning. It did not affect test results and was not broadened into an unrelated build change.
+
+### Fix round 1 commit
+
+Commit subject: `fix: harden session authentication`
