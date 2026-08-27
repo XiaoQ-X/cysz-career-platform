@@ -1,24 +1,47 @@
 # Home Design QA
 
-- Date: 2026-08-27
-- Reference: `docs/design/career-platform-homepage-final-v3.png`
-- Comparison captures: in-app Browser, 910px desktop viewport and 390px narrow viewport
-- Verification surface: temporary Vite QA harness mounted the real `HomeView` inside the real router shell with a real Pinia store and a minimal in-memory `STUDENT` session so the protected homepage could be reviewed without changing production auth routing
+- Source visual truth: `docs/design/career-platform-homepage-final-v3.png`
+- Implementation screenshots:
+  - `frontend/.qa-artifacts/task-9-desktop-910.png`
+  - `frontend/.qa-artifacts/task-9-narrow-390.png`
+- Viewports:
+  - Desktop: 910×1728
+  - Narrow: 390×1728
+- Captured pixel sizes:
+  - Source: 910×1728
+  - Desktop implementation: 1264×2947
+  - Narrow implementation: 375×4018
+- Density normalization: browser-native capture scale retained; no post-resize normalization was needed for the accepted comparison set.
+- State: default homepage, `朝小职` closed, disabled phase-two links visible, route guard preserved, temporary QA harness mounted through real `createMemoryHistory()` + real Pinia STUDENT session.
 
 ## Comparison Summary
 
-- Desktop 910px: section order, navigation labels, hero copy, CTA hierarchy, and dark cosmic art direction match the reference intent.
-- Narrow 390px: the header condenses cleanly, the hero CTA remains visible, the entry cards stack without overlap, and the floating assistant stays non-blocking.
-- Interaction/state: `朝小职` expands and collapses correctly, `职业测评` and `课程指导` remain disabled `ComingSoonLink` controls, and focus can reach the skip link targeting `#main-content`.
-- Console: in-app Browser console check returned no warnings or errors.
+- Full-view comparison was sufficient because the actionable deltas were section-level composition, copy, image fidelity, and interactive state.
+- Desktop hierarchy, navigation, hero copy, entry routes, resume section, and independent services section all match the source intent.
+- Narrow layout stacks cleanly and keeps the floating assistant non-blocking.
+- Console: no warnings or errors in the final browser passes.
+
+## Interaction Checks
+
+- `朝小职` open / close.
+- Skip link target `#main-content` present and covered by regression tests.
+- Disabled `职业测评` / `课程指导` nav badges remain visible with `即将上线`.
+
+## Comparison History
+
+- Iteration 1: opaque WebP derivatives introduced white-matte artifacts and an oversized hero assistant crop.
+  - Fix: regenerated the affected assets from the transparent repair variants and reduced the hero assistant scale/placement.
+  - Post-fix evidence: `frontend/.qa-artifacts/task-9-desktop-910.png`, `frontend/.qa-artifacts/task-9-narrow-390.png`.
+- Iteration 2: temporary QA harness initially warned on `/qa.html` because the production router was mounted.
+  - Fix: switched the harness to real `createMemoryHistory()` while preserving the production auth guard and STUDENT session.
+  - Post-fix evidence: final browser logs were empty.
 
 ## Findings
 
-- P3: the hero title angle is simplified compared with the source artwork, but the hierarchy, copy, and above-the-fold composition remain aligned.
-- P3: the supplied raster asset bundle uses light matte edges instead of perfect cutout transparency, so the implementation softens those edges with CSS masking; the resulting glow treatment is slightly less crisp than the source image.
+- No actionable P0/P1/P2 issues remain.
 
-## Resolution
+## Notes
 
-- No P0, P1, or P2 fidelity, accessibility, responsiveness, or interaction issues remained after the final pass.
+- Browser keyboard-focus state did not surface a distinct active-element change in this automation surface, so the skip-link contract is additionally covered by `frontend/src/features/home/__tests__/HomeView.spec.ts`.
 
 final result: passed

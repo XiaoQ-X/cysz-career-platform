@@ -87,14 +87,22 @@ import ComingSoonLink from '@/shared/ui/ComingSoonLink.vue'
 
 .home-nav :deep(.coming-soon-link) {
   min-height: 44px;
-  padding: 0;
-  border-radius: 0;
-  opacity: 0.68;
+  padding: 0.3rem 0.5rem;
+  border-radius: 999px;
+  background: rgb(11 18 40 / 58%);
+  opacity: 0.86;
   cursor: not-allowed;
+  gap: 0.35rem;
 }
 
 .home-nav :deep(.coming-soon-link__badge) {
-  display: none;
+  padding: 0.15rem 0.42rem;
+  border-radius: 999px;
+  background: rgb(98 233 255 / 12%);
+  color: var(--color-cyan);
+  font-size: 0.66rem;
+  line-height: 1;
+  white-space: nowrap;
 }
 
 .home-nav__link:hover,

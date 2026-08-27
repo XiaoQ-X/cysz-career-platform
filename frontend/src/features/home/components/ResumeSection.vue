@@ -8,7 +8,14 @@
         <RouterLink class="cta-link" to="/resume">进入简历中心</RouterLink>
       </div>
       <figure class="resume-section__visual">
-        <img src="@/assets/home/resume-orbit.png" alt="围绕着轨道旋转的发光简历" />
+        <img
+          :src="resumeOrbitUrl"
+          alt="围绕着轨道旋转的发光简历"
+          loading="lazy"
+          decoding="async"
+          width="1536"
+          height="1024"
+        />
         <figcaption>
           <span>结构检查</span>
           <span>表达优化</span>
@@ -18,6 +25,10 @@
     </div>
   </section>
 </template>
+
+<script setup lang="ts">
+import resumeOrbitUrl from '@/assets/home/optimized/resume-orbit.webp'
+</script>
 
 <style scoped>
 .resume-section {
@@ -79,6 +90,7 @@ h2 {
 .resume-section__visual img {
   width: 100%;
   max-height: 410px;
+  height: auto;
   object-fit: contain;
 }
 

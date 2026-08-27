@@ -12,13 +12,22 @@
       aria-controls="xiaozhi-panel"
       @click="isOpen = !isOpen"
     >
-      <img src="@/assets/home/xiaozhi-robot.png" alt="" aria-hidden="true" />
+      <img
+        :src="xiaozhiRobotUrl"
+        alt=""
+        aria-hidden="true"
+        loading="lazy"
+        decoding="async"
+        width="1254"
+        height="1254"
+      />
       <span>{{ isOpen ? '收起朝小职' : '朝小职' }}</span>
     </button>
   </aside>
 </template>
 
 <script setup lang="ts">
+import xiaozhiRobotUrl from '@/assets/home/optimized/xiaozhi-robot-transparent.webp'
 import { ref } from 'vue'
 
 const isOpen = ref(false)

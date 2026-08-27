@@ -8,7 +8,14 @@
 
     <div class="entry-grid">
       <article class="entry-option entry-option--blue">
-        <img src="@/assets/home/holographic-resume.png" alt="发光的简历文档" />
+        <img
+          :src="holographicResumeUrl"
+          alt="发光的简历文档"
+          loading="lazy"
+          decoding="async"
+          width="1254"
+          height="1254"
+        />
         <div>
           <h3>选择简历匹配</h3>
           <p>上传一次，可同时用于简历诊断</p>
@@ -17,7 +24,14 @@
       </article>
 
       <article class="entry-option entry-option--violet">
-        <img src="@/assets/home/career-target.png" alt="发光的职业目标靶心" />
+        <img
+          :src="careerTargetUrl"
+          alt="发光的职业目标靶心"
+          loading="lazy"
+          decoding="async"
+          width="1254"
+          height="1254"
+        />
         <div>
           <h3>填写求职偏好</h3>
           <p>专业、目标岗位、城市与行业</p>
@@ -31,6 +45,11 @@
     <p class="entry-note">完成简历或求职偏好中的任意一项后，为你筛选岗位</p>
   </section>
 </template>
+
+<script setup lang="ts">
+import careerTargetUrl from '@/assets/home/optimized/career-target-transparent.webp'
+import holographicResumeUrl from '@/assets/home/optimized/holographic-resume-transparent.webp'
+</script>
 
 <style scoped>
 .page-section {
@@ -83,7 +102,9 @@ h2 {
 
 .entry-option img {
   width: min(100%, 280px);
-  height: 220px;
+  height: auto;
+  aspect-ratio: 1;
+  max-height: 220px;
   object-fit: contain;
   margin-bottom: 1.25rem;
   filter: drop-shadow(0 24px 28px rgb(34 113 255 / 25%));
@@ -170,6 +191,10 @@ h3 {
 
   .entry-option {
     min-height: 0;
+  }
+
+  .entry-option img {
+    width: min(100%, 250px);
   }
 }
 </style>

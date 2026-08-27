@@ -6,7 +6,14 @@
     </div>
     <div class="services-grid">
       <article class="service-option">
-        <img src="@/assets/home/assessment-compass.png" alt="发光的职业测评罗盘" />
+        <img
+          :src="assessmentCompassUrl"
+          alt="发光的职业测评罗盘"
+          loading="lazy"
+          decoding="async"
+          width="1374"
+          height="1145"
+        />
         <div>
           <h3>职业测评</h3>
           <p>探索兴趣特点与职业倾向</p>
@@ -14,7 +21,14 @@
         </div>
       </article>
       <article class="service-option">
-        <img src="@/assets/home/course-cube.png" alt="发光的课程指导立方体" />
+        <img
+          :src="courseCubeUrl"
+          alt="发光的课程指导立方体"
+          loading="lazy"
+          decoding="async"
+          width="1254"
+          height="1254"
+        />
         <div>
           <h3>课程指导</h3>
           <p>连接学习资源与指导老师资源</p>
@@ -26,6 +40,8 @@
 </template>
 
 <script setup lang="ts">
+import assessmentCompassUrl from '@/assets/home/optimized/assessment-compass.webp'
+import courseCubeUrl from '@/assets/home/optimized/course-cube-transparent.webp'
 import ComingSoonLink from '@/shared/ui/ComingSoonLink.vue'
 </script>
 
@@ -72,6 +88,7 @@ h2 {
 .service-option img {
   width: 100%;
   max-height: 220px;
+  height: auto;
   object-fit: contain;
   filter: drop-shadow(0 18px 24px rgb(62 133 255 / 25%));
   -webkit-mask-image: radial-gradient(circle at center, #000 36%, #000 50%, transparent 78%);

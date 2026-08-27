@@ -1,6 +1,15 @@
 <template>
   <section class="hero-section" aria-labelledby="hero-title">
-    <img class="hero-section__cosmos" src="@/assets/home/hero-cosmos.png" alt="" aria-hidden="true" />
+    <img
+      class="hero-section__cosmos"
+      :src="heroCosmosUrl"
+      alt=""
+      aria-hidden="true"
+      decoding="async"
+      fetchpriority="high"
+      width="1672"
+      height="941"
+    />
     <div class="hero-section__content">
       <p class="eyebrow">朝阳师范学院 · 职业探索空间</p>
       <h1 id="hero-title">你的未来，<br /><span>不止一种答案</span></h1>
@@ -11,12 +20,14 @@
     </div>
     <p class="hero-section__companion">我可以陪你一起找方向</p>
     <div class="hero-section__robot" aria-hidden="true">
-      <img src="@/assets/home/xiaozhi-robot.png" alt="" />
+      <img :src="xiaozhiRobotUrl" alt="" decoding="async" fetchpriority="high" width="1254" height="1254" />
     </div>
   </section>
 </template>
 
 <script setup lang="ts">
+import heroCosmosUrl from '@/assets/home/optimized/hero-cosmos.webp'
+import xiaozhiRobotUrl from '@/assets/home/optimized/xiaozhi-robot-transparent.webp'
 import AppButton from '@/shared/ui/AppButton.vue'
 
 function scrollToEntry() {
@@ -117,8 +128,8 @@ h1 span {
 .hero-section__robot {
   position: absolute;
   right: max(2rem, calc((100vw - var(--content-max)) / 2));
-  bottom: 2rem;
-  width: min(30vw, 310px);
+  bottom: 1.6rem;
+  width: min(17vw, 180px);
   animation: hero-float 5s ease-in-out infinite;
   filter: drop-shadow(0 20px 28px rgb(42 123 255 / 22%));
 }
@@ -166,9 +177,9 @@ h1 span {
   }
 
   .hero-section__robot {
-    right: -0.5rem;
-    bottom: -2.5rem;
-    width: 220px;
+    right: 0.2rem;
+    bottom: -1.25rem;
+    width: 160px;
     opacity: 0.86;
   }
 }
