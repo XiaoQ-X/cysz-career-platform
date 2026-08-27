@@ -267,9 +267,9 @@ class AuthControllerTest {
 	}
 
 	@Test
-	void temporarySecurityBridgePermitsOnlyTheThreePostAuthRoutes() throws Exception {
+	void securityConfigurationPermitsOnlyTheThreePostAuthRoutes() throws Exception {
 		mvc.perform(get("/api/v1/auth/login"))
-				.andExpect(status().isForbidden());
+				.andExpect(status().isUnauthorized());
 		mvc.perform(post("/api/v1/auth/other"))
 				.andExpect(status().isForbidden());
 		mvc.perform(post("/api/v1/auth/login/extra"))

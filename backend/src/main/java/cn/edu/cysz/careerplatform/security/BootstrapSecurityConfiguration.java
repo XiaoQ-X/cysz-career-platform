@@ -2,14 +2,10 @@ package cn.edu.cysz.careerplatform.security;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
-import org.springframework.http.HttpMethod;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.web.SecurityFilterChain;
 
 import java.time.Clock;
 
@@ -31,17 +27,6 @@ class BootstrapSecurityConfiguration {
 	@Bean
 	Clock utcClock() {
 		return Clock.systemUTC();
-	}
-
-	@Bean
-	SecurityFilterChain bootstrapSecurityFilterChain(HttpSecurity http) throws Exception {
-		return http
-				.csrf(AbstractHttpConfigurer::disable)
-				.authorizeHttpRequests(authorize -> authorize
-						.requestMatchers(HttpMethod.POST,
-							"/api/v1/auth/login", "/api/v1/auth/refresh", "/api/v1/auth/logout").permitAll()
-						.anyRequest().denyAll())
-				.build();
 	}
 
 }
