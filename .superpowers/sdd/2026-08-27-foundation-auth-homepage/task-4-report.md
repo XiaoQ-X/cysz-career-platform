@@ -146,3 +146,25 @@ Therefore the two-success result was a deliberate lock-removal mutation, not a d
 
 - The lock-wait assertion intentionally connects as the MySQL compose root test account to read `performance_schema.data_lock_waits`; the application account has no access to that diagnostic schema. It is test-only and aligns with the local MySQL 8.4 compose environment used by this task.
 - Existing Mockito dynamic-agent warnings remain unchanged and did not affect any result.
+
+## Fix round 3/5
+
+### Root cause and portability correction
+
+The preserved partial Testcontainers migration correctly bound the Spring datasource to the class-local `MySQLContainer<>("mysql:8.4")`, but its diagnostic connection used the container's ordinary application user. A focused run proved the resulting CI-portability failure: the application migrated and ran against the container's random mapped port and `test` schema, then `performance_schema.data_lock_waits` failed with `SELECT command denied to user 'test'`.
+
+The diagnostic query now uses the same class-local container's JDBC URL and container-provided password with MySQL's root diagnostic account. This is not a Compose credential, fixed port, fixed database, or host assumption: the application datasource remains `mysql.getJdbcUrl()`, `mysql.getUsername()`, and `mysql.getPassword()`, and the diagnostic connection uses that same `mysql.getJdbcUrl()` plus the container-generated root password. Root access is limited to the test-only `performance_schema` lock-wait observation; application work continues to use the non-privileged Testcontainers user.
+
+### Verification and mutation evidence
+
+- Initial focused run: expected RED for the portability defect. The class-local MySQL 8.4 container started on a random port and Flyway migrated it; the concurrency proof then failed only because `test` lacked `SELECT` on `performance_schema.data_lock_waits`.
+- `./mvnw -Dtest=AuthControllerTest#concurrentRefreshAttemptsAllowExactlyOneSingleUseRotation test` after the diagnostic credential correction — GREEN: 1 test, 0 failures/errors. The holder transaction held the original row, both workers were observed waiting through `performance_schema`, release was latch-controlled, and the result retained one 200, one `401 INVALID_REFRESH_TOKEN`, old-token revocation, one active replacement, and a usable winner replacement.
+- Negative control: temporarily changed `AuthService.refresh` from `findByTokenHashForUpdate` to `findByTokenHash` and reran the same focused test. Expected RED: `expected: 1 but was: 2` active replacement sessions. The production lock query was immediately restored.
+- Restored focused run: `./mvnw -Dtest=AuthControllerTest#concurrentRefreshAttemptsAllowExactlyOneSingleUseRotation test` — GREEN: 1 test, 0 failures/errors.
+- Full suite: `./mvnw test` — GREEN: 35 tests, 0 failures/errors. AuthControllerTest ran 21 tests; the suite also completed its other Testcontainers MySQL 8.4 contexts and Flyway migrations.
+
+### Files and self-review
+
+- `backend/src/test/java/cn/edu/cysz/careerplatform/auth/AuthControllerTest.java` — took over the pre-existing dirty Testcontainers datasource migration and changed only the diagnostic connection to use the root account of that same class-local container. No production source change is retained.
+- The concurrency test remains bounded by latches, future timeouts, and condition polling; it uses no arbitrary timing sleep. It proves both worker lock waits before holder release and fails under the nonlocking repository mutation.
+- Existing Mockito dynamic-agent/JDK warnings and Testcontainers' JUnit closeable-resource warning remain external test-runtime noise; no new test failure or functional concern remains.

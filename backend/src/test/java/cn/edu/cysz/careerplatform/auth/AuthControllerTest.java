@@ -40,11 +40,16 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.testcontainers.containers.MySQLContainer;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
 
 import cn.edu.cysz.careerplatform.user.UserAccount;
 import cn.edu.cysz.careerplatform.user.UserAccountRepository;
@@ -52,6 +57,7 @@ import cn.edu.cysz.careerplatform.user.UserRole;
 
 @SpringBootTest
 @AutoConfigureMockMvc
+@Testcontainers
 @ActiveProfiles("test")
 @TestPropertySource(properties = "app.auth.jwt-secret=task4-test-signing-secret-32-bytes-minimum")
 @Import(AuthControllerTest.TestAccountsConfiguration.class)
@@ -59,6 +65,16 @@ class AuthControllerTest {
 
 	private static final String REFRESH_COOKIE = "career_refresh";
 	private static final String JWT_SECRET = "task4-test-signing-secret-32-bytes-minimum";
+
+	@Container
+	static final MySQLContainer<?> mysql = new MySQLContainer<>("mysql:8.4");
+
+	@DynamicPropertySource
+	static void configureDataSource(DynamicPropertyRegistry registry) {
+		registry.add("spring.datasource.url", mysql::getJdbcUrl);
+		registry.add("spring.datasource.username", mysql::getUsername);
+		registry.add("spring.datasource.password", mysql::getPassword);
+	}
 
 	@Autowired
 	MockMvc mvc;
@@ -442,7 +458,6 @@ class AuthControllerTest {
 	}
 
 	private int refreshSessionLockWaitCount() {
-		String url = "jdbc:mysql://localhost:3307/career_platform?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC";
 		String query = """
 				select count(*)
 				from performance_schema.data_lock_waits waits
@@ -451,7 +466,7 @@ class AuthControllerTest {
 				where requested.object_schema = database()
 				  and requested.object_name = 'refresh_session'
 				""";
-		try (var connection = DriverManager.getConnection(url, "root", "root_local");
+		try (var connection = DriverManager.getConnection(mysql.getJdbcUrl(), "root", mysql.getPassword());
 				var statement = connection.createStatement();
 				var result = statement.executeQuery(query)) {
 			result.next();
