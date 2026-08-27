@@ -5,3 +5,8 @@ spring:
       ddl-auto: validate
   flyway:
     enabled: true
+
+app:
+  auth:
+    jwt-secret: task4-test-signing-secret-32-bytes-minimum
+    refresh-cookie-secure: true

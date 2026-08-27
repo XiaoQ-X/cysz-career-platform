@@ -56,4 +56,28 @@ public class UserAccount {
 	public UserRole getRole() {
 		return role;
 	}
+
+	public UUID getId() {
+		return id;
+	}
+
+	public String getUsername() {
+		return username;
+	}
+
+	public String getPasswordHash() {
+		return passwordHash;
+	}
+
+	public String getDisplayName() {
+		return displayName;
+	}
+
+	public int getTokenVersion() {
+		return tokenVersion;
+	}
+
+	public boolean isActive() {
+		return "ACTIVE".equals(status);
+	}
 }

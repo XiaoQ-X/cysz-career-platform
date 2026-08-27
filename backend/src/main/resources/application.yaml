@@ -11,3 +11,8 @@ spring:
       ddl-auto: validate
   flyway:
     enabled: true
+
+app:
+  auth:
+    jwt-secret: ${JWT_SIGNING_KEY:}
+    refresh-cookie-secure: ${REFRESH_COOKIE_SECURE:true}
