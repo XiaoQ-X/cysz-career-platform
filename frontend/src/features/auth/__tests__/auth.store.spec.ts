@@ -27,6 +27,9 @@ type AdapterConfig = {
   method?: string
   headers?: unknown
   data?: unknown
+  baseURL?: string
+  withCredentials?: boolean
+  timeout?: number
 }
 
 type AdapterResult = {
@@ -39,6 +42,9 @@ type RecordedRequest = {
   method: string
   authorization: string | undefined
   data: unknown
+  baseURL: string | undefined
+  withCredentials: boolean | undefined
+  timeout: number | undefined
 }
 
 function ok<T>(data: T): AdapterResult {
@@ -67,6 +73,9 @@ function installAdapter(
       method: (config.method ?? 'get').toLowerCase(),
       authorization: readHeader(config.headers, 'Authorization'),
       data: parseJson(config.data),
+      baseURL: config.baseURL,
+      withCredentials: config.withCredentials,
+      timeout: config.timeout,
     }
     requests.push(request)
     const result = await handler(config, request)
@@ -161,7 +170,7 @@ describe('frontend auth session boundary', () => {
   })
 
   it('restores from the HttpOnly refresh cookie and clears state on refresh failure', async () => {
-    installAdapter((_config, request) => {
+    const requests = installAdapter((_config, request) => {
       if (request.url === '/auth/refresh') {
         return ok(apiOk(loginResult('SECRET_ACCESS_RESTORED', teacher)))
       }
@@ -173,6 +182,14 @@ describe('frontend auth session boundary', () => {
 
     expect(store.accessToken).toBe('SECRET_ACCESS_RESTORED')
     expect(store.user?.username).toBe('teacher')
+    expect(requests).toContainEqual(
+      expect.objectContaining({
+        url: '/auth/refresh',
+        baseURL: '/api/v1',
+        withCredentials: true,
+        timeout: 10_000,
+      }),
+    )
 
     installAdapter((_config, request) => {
       if (request.url === '/auth/refresh') {
@@ -317,6 +334,74 @@ describe('frontend auth session boundary', () => {
     expect(store.accessToken).toBeNull()
     expect(store.user).toBeNull()
     expect(navigateToLogin).toHaveBeenCalledExactlyOnceWith('/student/dashboard?tab=plan')
+  })
+
+  it('re-arms login navigation after a new session is accepted', async () => {
+    installAdapter((_config, request) => {
+      if (request.url === '/auth/refresh') {
+        return { status: 401, data: apiError('INVALID_REFRESH_TOKEN', 'Invalid refresh token') }
+      }
+      if (request.url === '/protected') {
+        return { status: 401, data: apiError('UNAUTHENTICATED', 'Authentication required') }
+      }
+      throw new Error(`unexpected request ${request.url}`)
+    })
+
+    const store = useAuthStore()
+    store.acceptSession(loginResult('SECRET_ACCESS_FIRST'))
+    window.history.replaceState(null, '', '/student/first')
+    await expect(http.get('/protected')).rejects.toMatchObject({ code: 'INVALID_REFRESH_TOKEN' })
+
+    store.acceptSession(loginResult('SECRET_ACCESS_SECOND'))
+    window.history.replaceState(null, '', '/student/second')
+    await expect(http.get('/protected')).rejects.toMatchObject({ code: 'INVALID_REFRESH_TOKEN' })
+
+    expect(navigateToLogin).toHaveBeenCalledTimes(2)
+    expect(navigateToLogin).toHaveBeenNthCalledWith(1, '/student/first')
+    expect(navigateToLogin).toHaveBeenNthCalledWith(2, '/student/second')
+  })
+
+  it('performs one clear transition and shares one normalized rejection when concurrent refresh fails', async () => {
+    installAdapter((_config, request) => {
+      if (request.url === '/auth/refresh') {
+        return { status: 401, data: apiError('INVALID_REFRESH_TOKEN', 'Invalid refresh token') }
+      }
+      if (request.url.startsWith('/protected/')) {
+        return { status: 401, data: apiError('UNAUTHENTICATED', 'Authentication required') }
+      }
+      throw new Error(`unexpected request ${request.url}`)
+    })
+
+    const store = useAuthStore()
+    store.acceptSession(loginResult('SECRET_ACCESS_EXPIRED'))
+    let clearActions = 0
+    store.$onAction(({ name, after }) => {
+      if (name === 'clearSession') {
+        after(() => {
+          clearActions += 1
+        })
+      }
+    })
+
+    const results = await Promise.allSettled([http.get('/protected/a'), http.get('/protected/b')])
+
+    expect(results).toEqual([
+      expect.objectContaining({
+        status: 'rejected',
+        reason: expect.objectContaining({ code: 'INVALID_REFRESH_TOKEN', traceId: 'trace-error' }),
+      }),
+      expect.objectContaining({
+        status: 'rejected',
+        reason: expect.objectContaining({ code: 'INVALID_REFRESH_TOKEN', traceId: 'trace-error' }),
+      }),
+    ])
+    expect(clearActions).toBe(1)
+    expect(store.$state).toEqual({
+      accessToken: null,
+      expiresAt: null,
+      user: null,
+      restoreAttempted: true,
+    })
   })
 
   it('normalizes API errors without retaining bearer tokens in exposed error text', async () => {

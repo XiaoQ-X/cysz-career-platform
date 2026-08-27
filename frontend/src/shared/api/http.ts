@@ -14,7 +14,6 @@ type RetriableRequestConfig = InternalAxiosRequestConfig & {
 interface SessionControls {
   getAccessToken: () => string | null
   refreshSession: () => Promise<string>
-  clearSession: () => void
   onUnauthenticated?: (redirect: string) => void
 }
 
@@ -66,6 +65,10 @@ export function bindSessionControls(controls: SessionControls | null) {
   loginNavigationSent = false
 }
 
+export function markSessionAccepted() {
+  loginNavigationSent = false
+}
+
 http.interceptors.request.use((config) => {
   const token = sessionControls?.getAccessToken()
   if (token && !isAuthPost(config)) {
@@ -91,8 +94,6 @@ http.interceptors.response.use(
         loginNavigationSent = false
         return http.request(config)
       } catch (refreshError) {
-        sessionControls.clearSession()
-        navigateToLoginOnce()
         return Promise.reject(normalizeApiError(refreshError))
       }
     }
@@ -109,9 +110,15 @@ function refreshAccessTokenOnce() {
       }),
     )
   }
-  refreshPromise ??= sessionControls.refreshSession().finally(() => {
-    refreshPromise = null
-  })
+  refreshPromise ??= sessionControls
+    .refreshSession()
+    .catch((error: unknown) => {
+      navigateToLoginOnce()
+      throw normalizeApiError(error)
+    })
+    .finally(() => {
+      refreshPromise = null
+    })
   return refreshPromise
 }
 

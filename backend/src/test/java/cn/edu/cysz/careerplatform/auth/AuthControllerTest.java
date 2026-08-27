@@ -104,6 +104,7 @@ class AuthControllerTest {
 				.content("{\"username\":\"student\",\"password\":\"Student123!\"}"))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.data.accessToken").isNotEmpty())
+			.andExpect(jsonPath("$.data.expiresInSeconds").value(900))
 			.andExpect(jsonPath("$.data.user.role").value("STUDENT"))
 			.andExpect(cookie().httpOnly(REFRESH_COOKIE, true))
 			.andExpect(cookie().sameSite(REFRESH_COOKIE, "Strict"))
@@ -162,6 +163,7 @@ class AuthControllerTest {
 		MvcResult refresh = mvc.perform(post("/api/v1/auth/refresh").cookie(refreshCookie(oldRaw)))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.data.accessToken").isNotEmpty())
+				.andExpect(jsonPath("$.data.expiresInSeconds").value(900))
 				.andExpect(cookie().httpOnly(REFRESH_COOKIE, true))
 				.andExpect(cookie().sameSite(REFRESH_COOKIE, "Strict"))
 				.andReturn();

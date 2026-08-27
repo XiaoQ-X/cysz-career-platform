@@ -94,6 +94,7 @@ public class AuthController {
 	private AuthResponse toResponse(AuthTokens tokens) {
 		AuthenticatedIdentity identity = tokens.identity();
 		return new AuthResponse(tokens.accessToken(),
+				JwtTokenService.ACCESS_TOKEN_LIFETIME.toSeconds(),
 				new UserResponse(identity.userId(), identity.username(), identity.displayName(), identity.role().name()));
 	}
 
@@ -146,7 +147,7 @@ public class AuthController {
 			@NotBlank @Size(max = 4096) String password) {
 	}
 
-	public record AuthResponse(String accessToken, UserResponse user) {
+	public record AuthResponse(String accessToken, long expiresInSeconds, UserResponse user) {
 	}
 
 	public record UserResponse(java.util.UUID id, String username, String displayName, String role) {

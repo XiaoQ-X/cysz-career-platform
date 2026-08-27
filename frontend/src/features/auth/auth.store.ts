@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 
 import { authApi } from '@/features/auth/auth.api'
 import type { CurrentUser, LoginResult } from '@/shared/api/contracts'
-import { ApiClientError, bindSessionControls } from '@/shared/api/http'
+import { ApiClientError, bindSessionControls, markSessionAccepted } from '@/shared/api/http'
 
 interface AuthState {
   accessToken: string | null
@@ -31,17 +31,22 @@ export const useAuthStore = defineStore('auth', {
 
   actions: {
     acceptSession(result: LoginResult) {
-      this.accessToken = result.accessToken
-      this.expiresAt = Date.now() + result.expiresInSeconds * 1_000
-      this.user = result.user
-      this.restoreAttempted = true
+      this.$patch({
+        accessToken: result.accessToken,
+        expiresAt: Date.now() + result.expiresInSeconds * 1_000,
+        user: result.user,
+        restoreAttempted: true,
+      })
+      markSessionAccepted()
     },
 
     clearSession() {
-      this.accessToken = null
-      this.expiresAt = null
-      this.user = null
-      this.restoreAttempted = true
+      this.$patch({
+        accessToken: null,
+        expiresAt: null,
+        user: null,
+        restoreAttempted: true,
+      })
     },
 
     async login(username: string, password: string) {
@@ -93,7 +98,6 @@ export function installAuthHttpBinding(options: AuthBindingOptions = {}) {
       }
       return store.accessToken
     },
-    clearSession: () => store.clearSession(),
     onUnauthenticated: options.navigateToLogin,
   })
 }
