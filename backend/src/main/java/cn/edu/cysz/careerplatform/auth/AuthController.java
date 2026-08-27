@@ -134,9 +134,12 @@ public class AuthController {
 	}
 
 	private boolean hasExplicitLocalProfile(String activeProfiles) {
-		return Arrays.stream(activeProfiles.split(","))
+		String[] profiles = Arrays.stream(activeProfiles.split(","))
 				.map(String::trim)
-				.anyMatch(profile -> profile.equals("local") || profile.equals("test") || profile.equals("e2e"));
+				.filter(profile -> !profile.isEmpty())
+				.toArray(String[]::new);
+		return profiles.length > 0 && Arrays.stream(profiles)
+				.allMatch(profile -> profile.equals("local") || profile.equals("test") || profile.equals("e2e"));
 	}
 
 	public record LoginRequest(@NotBlank @Size(max = 64) String username,

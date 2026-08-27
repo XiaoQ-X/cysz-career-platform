@@ -102,3 +102,47 @@ The preserved Task 4 implementation and RED tests were kept in place. This round
 ### Fix round 1 commit
 
 Commit subject: `fix: harden session authentication`
+
+## Fix round 2/5
+
+### RED/GREEN evidence
+
+The Secure-cookie regression tests were added before the policy change. With the old `anyMatch` profile rule, `insecureCookiesCannotBeConfiguredWithAProductionAndLocalProfile` failed because the constructor returned normally. The no-profile regression (`""`) was already green under the old implementation because it already failed closed; it was retained to protect that boundary. The minimal implementation now parses a nonempty list and requires every trimmed profile to be exactly `local`, `test`, or `e2e`.
+
+The resulting profile coverage accepts `local`, `test`, `e2e`, and combinations composed only of those names. It rejects no profile, `prod`, `production`, `prod,local`, `production,local`, uppercase `LOCAL`, and nonexact `local-dev`.
+
+The concurrency proof was replaced test-first with a holder transaction plus real MySQL lock-wait observation. The green run held the original `refresh_session` row through a dedicated `TransactionTemplate`, started both MVC refresh workers, observed two MySQL `performance_schema.data_lock_waits` rows for `refresh_session`, then released the holder. It proved exactly one 200 response, exactly one `401 INVALID_REFRESH_TOKEN`, old-token revocation, exactly one active replacement, and successful use of the winning replacement.
+
+Mutation verification temporarily changed `AuthService.refresh` from `findByTokenHashForUpdate` to the nonlocking `findByTokenHash`, then ran the same test. It failed with `expected: 1 but was: 2` active refresh sessions. This is the expected lost-update failure: both workers had read a usable pre-revocation state before they later contended on the holder's row lock for their writes. The production call was restored immediately after that negative-control run.
+
+### Concurrency root-cause investigation
+
+The mutation result was investigated as a possible production defect without weakening the test or adding timing sleeps. The restored production test passed repeatedly. A focused run with Spring transaction-interceptor trace logging and Hibernate SQL logging established:
+
+- The holder (`pool-3-thread-1`) and both MVC refresh workers (`pool-3-thread-2` and `pool-3-thread-3`) each create their own transaction.
+- All three issue `select ... from refresh_session ... for update`, and the test observes both worker waits before releasing the holder.
+- `AuthService.refresh` performs its first `RefreshSession` read with that locking query. There is no prior session read in either worker transaction, so no pre-lock entity or first-level-cache snapshot exists.
+- After release, the winning worker persists its replacement and revokes the old session. The other worker resumes its locking read, reaches the post-lock `current.isUsableAt(now)` check, and rolls back with `InvalidRefreshTokenException` from `AuthService.java:71`.
+
+Therefore the two-success result was a deliberate lock-removal mutation, not a defect in the restored production path. No production change was warranted for this finding: the transactional pessimistic query and the revalidation already occur in the correct order. The strengthened test now prevents their removal or movement before the lock.
+
+### Commands and output
+
+- `./mvnw '-Dtest=AuthControllerTest#insecureCookiesCannotBeConfiguredWithAProductionAndLocalProfile+insecureCookiesCannotBeConfiguredWithoutAnActiveProfile' test` — RED: 2 tests run, 1 expected failure; `prod,local` incorrectly returned normally while the no-profile guard was already green.
+- `./mvnw '-Dtest=AuthControllerTest#insecureCookiesCannotBeConfiguredOutsideAnExplicitLocalProfile+insecureCookiesCannotBeConfiguredWithAProductionAndLocalProfile+insecureCookiesCannotBeConfiguredWithoutAnActiveProfile' test` — GREEN: 3 tests, 0 failures/errors.
+- `./mvnw '-Dtest=AuthControllerTest#concurrentRefreshAttemptsAllowExactlyOneSingleUseRotation' test` — GREEN: 1 test, 0 failures/errors with the real `FOR UPDATE` path.
+- `./mvnw '-Dtest=AuthControllerTest#concurrentRefreshAttemptsAllowExactlyOneSingleUseRotation' test` with the temporary nonlocking mutation — RED: `expected: 1 but was: 2` active sessions. The mutation was restored before all subsequent runs.
+- `./mvnw '-Dtest=AuthControllerTest#concurrentRefreshAttemptsAllowExactlyOneSingleUseRotation' '-Dlogging.level.org.springframework.transaction.interceptor=TRACE' '-Dlogging.level.org.hibernate.SQL=DEBUG' test` — GREEN: 1 test, 0 failures/errors; captured the independent transactions, three `FOR UPDATE` statements, winner commit, and second post-lock invalid-token rollback described above.
+- `./mvnw '-Dtest=AuthControllerTest' test` — GREEN: 21 tests, 0 failures/errors.
+- `./mvnw test` — GREEN: 35 tests, 0 failures/errors across authentication, application context, health/API safety, logging, and MySQL repository suites. Testcontainers MySQL 8.4 started and migrated successfully.
+
+### Files and mutation rationale
+
+- `backend/src/main/java/cn/edu/cysz/careerplatform/auth/AuthController.java` — production policy-only change: Secure=false is now fail-closed unless every configured active profile is an exact approved local/test/e2e profile.
+- `backend/src/test/java/cn/edu/cysz/careerplatform/auth/AuthControllerTest.java` — expands profile boundary coverage and replaces the schedule-dependent refresh race with a deterministic holder transaction, latches, bounded futures/condition, and lock-wait observation. No production test hook or mock-call assertion was added.
+- The `findByTokenHashForUpdate` → `findByTokenHash` mutation proves the test catches removal of the locking/revalidation boundary; it is not retained in production.
+
+### Concerns
+
+- The lock-wait assertion intentionally connects as the MySQL compose root test account to read `performance_schema.data_lock_waits`; the application account has no access to that diagnostic schema. It is test-only and aligns with the local MySQL 8.4 compose environment used by this task.
+- Existing Mockito dynamic-agent warnings remain unchanged and did not affect any result.

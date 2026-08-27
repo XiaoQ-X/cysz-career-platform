@@ -12,6 +12,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.sql.DriverManager;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Base64;
@@ -22,6 +23,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BooleanSupplier;
 
 import jakarta.servlet.http.Cookie;
 
@@ -41,6 +43,8 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import cn.edu.cysz.careerplatform.user.UserAccount;
 import cn.edu.cysz.careerplatform.user.UserAccountRepository;
@@ -70,6 +74,9 @@ class AuthControllerTest {
 
 	@Autowired
 	PasswordEncoder passwordEncoder;
+
+	@Autowired
+	PlatformTransactionManager transactionManager;
 
 	@Test
 	void loginReturnsAccessTokenAndHttpOnlyRefreshCookie() throws Exception {
@@ -333,35 +340,125 @@ class AuthControllerTest {
 	}
 
 	@Test
+	void insecureCookiesCannotBeConfiguredWithAProductionAndLocalProfile() {
+		assertThatThrownBy(() -> new AuthController(null, false, "prod,local"))
+				.isInstanceOf(IllegalStateException.class);
+	}
+
+	@Test
+	void insecureCookiesCannotBeConfiguredWithoutAnActiveProfile() {
+		assertThatThrownBy(() -> new AuthController(null, false, ""))
+				.isInstanceOf(IllegalStateException.class);
+	}
+
+	@Test
+	void insecureCookiesRequireEveryActiveProfileToBeAnExactApprovedName() {
+		new AuthController(null, false, "test");
+		new AuthController(null, false, "e2e");
+		new AuthController(null, false, "local,test,e2e");
+
+		assertThatThrownBy(() -> new AuthController(null, false, "production"))
+				.isInstanceOf(IllegalStateException.class);
+		assertThatThrownBy(() -> new AuthController(null, false, "production,local"))
+				.isInstanceOf(IllegalStateException.class);
+		assertThatThrownBy(() -> new AuthController(null, false, "LOCAL"))
+				.isInstanceOf(IllegalStateException.class);
+		assertThatThrownBy(() -> new AuthController(null, false, "local-dev"))
+				.isInstanceOf(IllegalStateException.class);
+	}
+
+	@Test
 	void concurrentRefreshAttemptsAllowExactlyOneSingleUseRotation() throws Exception {
 		String username = "race-" + UUID.randomUUID();
 		UserAccount user = users.save(UserAccount.create(username, passwordEncoder.encode("Race123!"), "Race User", UserRole.STUDENT));
 		String oldRaw = cookieValue(login(username, "Race123!"));
-		ExecutorService executor = Executors.newFixedThreadPool(2);
-		CountDownLatch start = new CountDownLatch(1);
-		Future<MvcResult> first = executor.submit(() -> concurrentRefresh(start, oldRaw));
-		Future<MvcResult> second = executor.submit(() -> concurrentRefresh(start, oldRaw));
+		CountDownLatch holderLocked = new CountDownLatch(1);
+		CountDownLatch releaseHolder = new CountDownLatch(1);
+		CountDownLatch workersStarted = new CountDownLatch(2);
+		ExecutorService executor = Executors.newFixedThreadPool(3);
+		Future<?> holder = executor.submit(() -> holdRefreshSessionLock(sha256(oldRaw), holderLocked, releaseHolder));
 
 		try {
-			start.countDown();
+			assertThat(holderLocked.await(5, TimeUnit.SECONDS)).isTrue();
+			Future<MvcResult> first = executor.submit(() -> concurrentRefresh(workersStarted, oldRaw));
+			Future<MvcResult> second = executor.submit(() -> concurrentRefresh(workersStarted, oldRaw));
+			assertThat(workersStarted.await(5, TimeUnit.SECONDS)).isTrue();
+			awaitCondition(() -> refreshSessionLockWaitCount() >= 2,
+					"both refresh workers to wait for the held refresh-session row lock");
+
+			releaseHolder.countDown();
+			holder.get(5, TimeUnit.SECONDS);
 			MvcResult firstResult = first.get(10, TimeUnit.SECONDS);
 			MvcResult secondResult = second.get(10, TimeUnit.SECONDS);
 			int successful = (firstResult.getResponse().getStatus() == 200 ? 1 : 0)
 					+ (secondResult.getResponse().getStatus() == 200 ? 1 : 0);
 
 			assertThat(successful).isEqualTo(1);
-			assertThat(firstResult.getResponse().getStatus() == 401
-					|| secondResult.getResponse().getStatus() == 401).isTrue();
+			MvcResult winner = firstResult.getResponse().getStatus() == 200 ? firstResult : secondResult;
+			MvcResult loser = firstResult.getResponse().getStatus() == 401 ? firstResult : secondResult;
+			assertThat(loser.getResponse().getStatus()).isEqualTo(401);
+			assertThat(loser.getResponse().getContentAsString()).contains("INVALID_REFRESH_TOKEN");
+			assertThat(refreshSessions.findByTokenHash(sha256(oldRaw))).get()
+					.extracting(RefreshSession::getRevokedAt).isNotNull();
 			assertThat(refreshSessions.countByUserIdAndRevokedAtIsNullAndExpiresAtAfter(user.getId(), Instant.now(clock)))
-				.isEqualTo(1);
+					.isEqualTo(1);
+
+			mvc.perform(post("/api/v1/auth/refresh").cookie(refreshCookie(cookieValue(winner))))
+					.andExpect(status().isOk())
+					.andExpect(jsonPath("$.data.accessToken").isNotEmpty());
 		} finally {
+			releaseHolder.countDown();
 			executor.shutdownNow();
 		}
 	}
 
-	private MvcResult concurrentRefresh(CountDownLatch start, String raw) throws Exception {
-		assertThat(start.await(5, TimeUnit.SECONDS)).isTrue();
+	private void holdRefreshSessionLock(String tokenHash, CountDownLatch holderLocked,
+			CountDownLatch releaseHolder) {
+		new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+			refreshSessions.findByTokenHashForUpdate(tokenHash).orElseThrow();
+			holderLocked.countDown();
+			try {
+				assertThat(releaseHolder.await(10, TimeUnit.SECONDS)).isTrue();
+			} catch (InterruptedException exception) {
+				Thread.currentThread().interrupt();
+				throw new AssertionError("Interrupted while holding the refresh-session row lock", exception);
+			}
+		});
+	}
+
+	private MvcResult concurrentRefresh(CountDownLatch workersStarted, String raw) throws Exception {
+		workersStarted.countDown();
 		return mvc.perform(post("/api/v1/auth/refresh").cookie(refreshCookie(raw))).andReturn();
+	}
+
+	private void awaitCondition(BooleanSupplier condition, String description) {
+		long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+		while (!condition.getAsBoolean()) {
+			if (System.nanoTime() >= deadline) {
+				throw new AssertionError("Timed out waiting for " + description);
+			}
+			Thread.onSpinWait();
+		}
+	}
+
+	private int refreshSessionLockWaitCount() {
+		String url = "jdbc:mysql://localhost:3307/career_platform?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC";
+		String query = """
+				select count(*)
+				from performance_schema.data_lock_waits waits
+				join performance_schema.data_locks requested
+				  on requested.engine_lock_id = waits.requesting_engine_lock_id
+				where requested.object_schema = database()
+				  and requested.object_name = 'refresh_session'
+				""";
+		try (var connection = DriverManager.getConnection(url, "root", "root_local");
+				var statement = connection.createStatement();
+				var result = statement.executeQuery(query)) {
+			result.next();
+			return result.getInt(1);
+		} catch (Exception exception) {
+			throw new AssertionError("Unable to inspect MySQL refresh-session lock waits", exception);
+		}
 	}
 
 	private MvcResult login(String username, String password) throws Exception {
