@@ -1,0 +1,15 @@
+:root {
+  --color-bg: #070b1d;
+  --color-surface: #101834;
+  --color-surface-soft: #162044;
+  --color-text: #f7f9ff;
+  --color-text-muted: #b8c2df;
+  --color-cyan: #62e9ff;
+  --color-violet: #9f86ff;
+  --color-amber: #ffc96b;
+  --color-danger: #ff6b7a;
+  --focus-ring: 0 0 0 3px rgb(98 233 255 / 45%);
+  --content-max: 1200px;
+  --radius-control: 999px;
+  --radius-panel: 28px;
+}

@@ -3,6 +3,8 @@ import { createPinia } from 'pinia'
 
 import App from './App.vue'
 import router from './app/router'
+import './app/styles/tokens.css'
+import './app/styles/base.css'
 import { installAuthHttpBinding, useAuthStore } from './features/auth/auth.store'
 
 const app = createApp(App)
