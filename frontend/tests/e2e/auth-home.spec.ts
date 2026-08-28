@@ -3,7 +3,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test'
 async function loginAsStudent(page: Page) {
   await page.goto('/login')
   await page.getByLabel('用户名').fill('student')
-  await page.getByLabel('密码').fill('Student123!')
+  await page.getByLabel('密码', { exact: true }).fill('Student123!')
   await page.getByRole('button', { name: '登录' }).click()
 }
 
