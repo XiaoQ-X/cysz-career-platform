@@ -5,6 +5,7 @@ async function loginAsStudent(page: Page) {
   await page.getByLabel('用户名').fill('student')
   await page.getByLabel('密码', { exact: true }).fill('Student123!')
   await page.getByRole('button', { name: '登录' }).click()
+  await expect(page).toHaveURL('/')
 }
 
 function boxesOverlap(
