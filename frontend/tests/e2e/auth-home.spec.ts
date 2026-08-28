@@ -78,9 +78,20 @@ test.describe('390px viewport', () => {
     await expect(assistantToggle).toHaveAttribute('aria-expanded', 'false')
     await assistantToggle.click()
     await expect(assistantToggle).toHaveAttribute('aria-expanded', 'true')
-    await expect(page.locator('#xiaozhi-panel')).toBeVisible()
+    const assistantPanel = page.locator('#xiaozhi-panel')
+    await expect(assistantPanel).toBeVisible()
+
+    const expandedPanelBox = await assistantPanel.boundingBox()
+    const expandedActionBox = await browseJobsLink.boundingBox()
+
+    expect(expandedPanelBox).not.toBeNull()
+    expect(expandedActionBox).not.toBeNull()
+    expect(boxesOverlap(expandedPanelBox!, expandedActionBox!)).toBe(false)
+
+    await browseJobsLink.click({ trial: true })
+
     await assistantToggle.click()
     await expect(assistantToggle).toHaveAttribute('aria-expanded', 'false')
-    await expect(page.locator('#xiaozhi-panel')).toHaveCount(0)
+    await expect(assistantPanel).toHaveCount(0)
   })
 })

@@ -52,3 +52,39 @@
 - Real green E2E evidence is still pending a live Docker/MySQL environment; today only test discovery and infra-failure behavior could be verified.
 - Backend `./mvnw test` remains infra-blocked on this host until Docker Desktop (or another compatible daemon) is running.
 - Unrelated worktree changes at `.superpowers/sdd/2026-08-27-foundation-auth-homepage/task-9-report.md` and untracked `frontend/scripts/` were left untouched.
+
+## Fix Round 1
+
+### Changed files
+- `frontend/playwright.config.ts`
+- `frontend/playwright.config.spec.ts`
+- `frontend/tests/e2e/auth-home.spec.ts`
+- `frontend/src/features/home/components/XiaoZhiShell.vue`
+- `.superpowers/sdd/2026-08-27-foundation-auth-homepage/task-10-report.md`
+
+### Review items fixed
+- Critical: replaced the backend Playwright readiness probe with `url: 'http://127.0.0.1:8080/api/v1/health'` and removed the backend `port` probe, preserving the cross-platform Maven command.
+- Important: expanded the 390px E2E to re-check `#xiaozhi-panel` against the `直接浏览岗位库` primary action after opening the shell, prove the action remains `trial`-clickable, then close the shell and verify the closed state; on narrow screens the shell now opens upward instead of horizontally across the bottom CTA area.
+
+### Covering test files
+- `frontend/playwright.config.spec.ts`
+- `frontend/tests/e2e/auth-home.spec.ts`
+
+### Commands and results
+- `cd frontend; npm run test:unit -- playwright.config.spec.ts --run`
+  - RED result before the config fix: failed with `expected undefined to be 'http://127.0.0.1:8080/api/v1/health'`.
+  - GREEN result after the config fix: passed with `Test Files 1 passed (1); Tests 1 passed (1)`.
+- `cd frontend; npx playwright test --list`
+  - Result: passed; discovered 3 Chromium tests in `auth-home.spec.ts`, including the 390px overlay scenario.
+- `cd frontend; npm run lint`
+  - Result: passed.
+- `cd frontend; npm run test:unit -- --run`
+  - Result: passed with `Test Files 8 passed (8); Tests 35 passed (35)`.
+- `cd frontend; npm run build`
+  - Result: passed; Vite built 134 modules successfully.
+- `docker compose -f infra/compose.yaml up -d`
+  - Result: blocked by host environment. Exact output: `failed to connect to the docker API at npipe:////./pipe/dockerDesktopLinuxEngine; check if the path is correct and if the daemon is running: open //./pipe/dockerDesktopLinuxEngine: The system cannot find the file specified.`
+
+### Concerns
+- On August 28, 2026, this host still did not provide a running Docker daemon, so real MySQL-backed E2E could not be attempted in this fix round.
+- The upward-opening narrow-screen shell is the smallest product adjustment I made for the review item; it was not accompanied by a live browser E2E pass because infrastructure remained blocked.

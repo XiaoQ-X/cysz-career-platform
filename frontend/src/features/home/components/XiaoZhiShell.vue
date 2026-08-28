@@ -108,6 +108,8 @@ const isOpen = ref(false)
   .xiaozhi-shell {
     right: 0.7rem;
     bottom: 0.7rem;
+    flex-direction: column;
+    align-items: flex-end;
   }
 
   .xiaozhi-shell__panel {
