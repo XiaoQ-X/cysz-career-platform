@@ -13,10 +13,11 @@ function configuredWebServers() {
 }
 
 describe('playwright config', () => {
-  it('waits for the public backend health endpoint instead of the authenticated root', () => {
+  it('starts the build-isolated E2E runtime and waits for real readiness', () => {
     const backendServer = configuredWebServers()[0]
 
-    expect(backendServer?.url).toBe('http://127.0.0.1:8080/api/v1/health')
+    expect(backendServer?.command).toContain('-Pe2e')
+    expect(backendServer?.url).toBe('http://127.0.0.1:8080/actuator/health/readiness')
     expect(backendServer && 'port' in backendServer).toBe(false)
   })
 })

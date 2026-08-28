@@ -8,14 +8,7 @@
 
     <div class="entry-grid">
       <article class="entry-option entry-option--blue">
-        <img
-          :src="holographicResumeUrl"
-          alt="发光的简历文档"
-          loading="lazy"
-          decoding="async"
-          width="1254"
-          height="1254"
-        />
+        <ResumeDocumentArt />
         <div>
           <h3>选择简历匹配</h3>
           <p>上传一次，可同时用于简历诊断</p>
@@ -24,14 +17,7 @@
       </article>
 
       <article class="entry-option entry-option--violet">
-        <img
-          :src="careerTargetUrl"
-          alt="发光的职业目标靶心"
-          loading="lazy"
-          decoding="async"
-          width="1254"
-          height="1254"
-        />
+        <CareerTargetArt />
         <div>
           <h3>填写求职偏好</h3>
           <p>专业、目标岗位、城市与行业</p>
@@ -47,8 +33,8 @@
 </template>
 
 <script setup lang="ts">
-import careerTargetUrl from '@/assets/home/optimized/career-target-transparent.webp'
-import holographicResumeUrl from '@/assets/home/optimized/holographic-resume-transparent.webp'
+import CareerTargetArt from '@/features/home/artwork/CareerTargetArt.vue'
+import ResumeDocumentArt from '@/features/home/artwork/ResumeDocumentArt.vue'
 </script>
 
 <style scoped>
@@ -100,20 +86,13 @@ h2 {
   text-align: center;
 }
 
-.entry-option img {
+.entry-option :deep(.home-artwork) {
   width: min(100%, 280px);
   height: auto;
   aspect-ratio: 1;
   max-height: 160px;
   object-fit: contain;
   margin-bottom: 0.75rem;
-  filter: drop-shadow(0 24px 28px rgb(34 113 255 / 25%));
-  -webkit-mask-image: radial-gradient(circle at center, #000 36%, #000 50%, transparent 78%);
-  mask-image: radial-gradient(circle at center, #000 36%, #000 50%, transparent 78%);
-}
-
-.entry-option--violet img {
-  filter: drop-shadow(0 24px 28px rgb(174 94 255 / 24%));
 }
 
 h3 {
@@ -193,7 +172,7 @@ h3 {
     min-height: 0;
   }
 
-  .entry-option img {
+  .entry-option :deep(.home-artwork) {
     width: min(100%, 250px);
   }
 }

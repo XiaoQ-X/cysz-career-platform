@@ -9,6 +9,7 @@ interface AuthState {
   expiresAt: number | null
   user: CurrentUser | null
   restoreAttempted: boolean
+  logoutRevocationStatus: 'idle' | 'pending' | 'incomplete'
 }
 
 interface AuthBindingOptions {
@@ -23,6 +24,7 @@ export const useAuthStore = defineStore('auth', {
     expiresAt: null,
     user: null,
     restoreAttempted: false,
+    logoutRevocationStatus: 'idle',
   }),
 
   getters: {
@@ -36,6 +38,7 @@ export const useAuthStore = defineStore('auth', {
         expiresAt: Date.now() + result.expiresInSeconds * 1_000,
         user: result.user,
         restoreAttempted: true,
+        logoutRevocationStatus: 'idle',
       })
       markSessionAccepted()
     },
@@ -73,12 +76,18 @@ export const useAuthStore = defineStore('auth', {
     },
 
     async logout() {
+      this.clearSession()
+      return this.retryLogout()
+    },
+
+    async retryLogout() {
+      this.logoutRevocationStatus = 'pending'
       try {
         await authApi.logout()
-      } catch {
-        // Local session state is cleared even if the server cannot revoke this request.
-      } finally {
-        this.clearSession()
+        this.logoutRevocationStatus = 'idle'
+      } catch (error: unknown) {
+        this.logoutRevocationStatus = 'incomplete'
+        throw error
       }
     },
   },
@@ -98,6 +107,11 @@ export function installAuthHttpBinding(options: AuthBindingOptions = {}) {
       }
       return store.accessToken
     },
-    onUnauthenticated: options.navigateToLogin,
+    onUnauthenticated: (redirect) => {
+      if (store.accessToken || store.user || store.expiresAt !== null || !store.restoreAttempted) {
+        store.clearSession()
+      }
+      options.navigateToLogin?.(redirect)
+    },
   })
 }

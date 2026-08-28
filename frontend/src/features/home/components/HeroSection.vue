@@ -20,14 +20,14 @@
     </div>
     <p class="hero-section__companion">我可以陪你一起找方向</p>
     <div class="hero-section__robot" aria-hidden="true">
-      <img :src="xiaozhiRobotUrl" alt="" decoding="async" fetchpriority="high" width="1254" height="1254" />
+      <XiaoZhiPetArt />
     </div>
   </section>
 </template>
 
 <script setup lang="ts">
 import heroCosmosUrl from '@/assets/home/optimized/hero-cosmos.webp'
-import xiaozhiRobotUrl from '@/assets/home/optimized/xiaozhi-robot-transparent.webp'
+import XiaoZhiPetArt from '@/features/home/artwork/XiaoZhiPetArt.vue'
 import AppButton from '@/shared/ui/AppButton.vue'
 
 function scrollToEntry() {
@@ -135,12 +135,10 @@ h1 span {
   filter: drop-shadow(0 20px 28px rgb(42 123 255 / 22%));
 }
 
-.hero-section__robot img {
+.hero-section__robot :deep(.home-artwork) {
   width: 100%;
   height: auto;
   aspect-ratio: 1;
-  -webkit-mask-image: radial-gradient(circle at center, #000 40%, #000 55%, transparent 82%);
-  mask-image: radial-gradient(circle at center, #000 40%, #000 55%, transparent 82%);
 }
 
 @keyframes hero-float {

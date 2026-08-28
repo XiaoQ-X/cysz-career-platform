@@ -1,10 +1,24 @@
 import { createPinia, setActivePinia } from 'pinia'
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { createMemoryHistory } from 'vue-router'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { createAppRouter } from '@/app/router'
+import { authApi } from '@/features/auth/auth.api'
+import { useAuthStore } from '@/features/auth/auth.store'
 import HomeView from '@/features/home/HomeView.vue'
+import type { LoginResult } from '@/shared/api/contracts'
+
+const studentSession: LoginResult = {
+  accessToken: 'ACCESS_FOR_HOME_TEST',
+  expiresInSeconds: 900,
+  user: {
+    id: 'b66d36bb-a2cf-4ac4-89fc-63a07a9df71ef',
+    username: 'student',
+    displayName: '张同学',
+    role: 'STUDENT',
+  },
+}
 
 async function mountHome() {
   const pinia = createPinia()
@@ -17,7 +31,28 @@ async function mountHome() {
   return mount(HomeView, { global: { plugins: [pinia, router] } })
 }
 
+async function mountAuthenticatedHome() {
+  const pinia = createPinia()
+  setActivePinia(pinia)
+  const router = createAppRouter(createMemoryHistory())
+  const store = useAuthStore()
+  store.acceptSession(studentSession)
+
+  await router.push('/')
+  await router.isReady()
+
+  return {
+    router,
+    store,
+    wrapper: mount(HomeView, { global: { plugins: [pinia, router] } }),
+  }
+}
+
 describe('HomeView', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
   it('keeps the student route targets and disabled coming-soon badges visible', async () => {
     // Catches a regression that exposes personalized content before the student supplies inputs.
     const wrapper = await mountHome()
@@ -43,36 +78,47 @@ describe('HomeView', () => {
     expect(wrapper.text()).not.toContain('校园活动')
   })
 
-  it('lazy-loads non-hero artwork while reserving dimensions and keeping hero art prioritized', async () => {
-    // Catches a regression that eagerly downloads oversized below-the-fold art or causes layout shifts.
+  it('uses clean code-native vectors for the four failed matte artworks', async () => {
     const wrapper = await mountHome()
 
     const heroCosmos = wrapper.get('.hero-section__cosmos')
-    const heroRobot = wrapper.get('.hero-section__robot img')
     expect(heroCosmos.attributes('fetchpriority')).toBe('high')
-    expect(heroRobot.attributes('fetchpriority')).toBe('high')
     expect(heroCosmos.attributes('loading')).toBeUndefined()
-    expect(heroRobot.attributes('loading')).toBeUndefined()
     expect(heroCosmos.attributes('src')).toMatch(/\/optimized\/[^/]+\.webp(?:$|[?#])/i)
-    expect(heroRobot.attributes('src')).toMatch(/\/optimized\/[^/]+\.webp(?:$|[?#])/i)
 
-    const lazyArtworkSelectors = [
-      '.entry-option--blue img',
-      '.entry-option--violet img',
-      '.resume-section__visual img',
-      '.service-option:first-child img',
-      '.service-option:last-child img',
-      '.xiaozhi-shell__toggle img',
+    const vectorArtworkSelectors = [
+      '.hero-section__robot svg[data-artwork="xiaozhi-pet"]',
+      '.entry-option--blue svg[data-artwork="resume-document"]',
+      '.entry-option--violet svg[data-artwork="career-target"]',
+      '.service-option:last-child svg[data-artwork="course-cube"]',
+      '.xiaozhi-shell__toggle svg[data-artwork="xiaozhi-pet"]',
     ]
 
-    for (const selector of lazyArtworkSelectors) {
-      const image = wrapper.get(selector)
-      expect(image.attributes('loading')).toBe('lazy')
-      expect(image.attributes('decoding')).toBe('async')
-      expect(Number(image.attributes('width'))).toBeGreaterThan(0)
-      expect(Number(image.attributes('height'))).toBeGreaterThan(0)
-      expect(image.attributes('src')).toMatch(/\/optimized\/[^/]+\.webp(?:$|[?#])/i)
+    for (const selector of vectorArtworkSelectors) {
+      const artwork = wrapper.get(selector)
+      expect(artwork.attributes('aria-hidden')).toBe('true')
+      expect(artwork.find('image').exists()).toBe(false)
     }
+
+    expect(wrapper.find('img[src*="-transparent.webp"]').exists()).toBe(false)
+  })
+
+  it('keeps every footer destination honest and structurally reserves XiaoZhi safe space', async () => {
+    const wrapper = await mountHome()
+    const links = wrapper.findAll('.home-footer nav a')
+
+    expect(links.map((link) => link.attributes('href'))).toEqual([
+      '#about',
+      '#privacy',
+      '#terms',
+      '#help',
+    ])
+    for (const link of links) {
+      const href = link.attributes('href')
+      expect(href).toBeDefined()
+      expect(wrapper.find(href ?? '#missing-footer-target').exists()).toBe(true)
+    }
+    expect(wrapper.get('.xiaozhi-safe-area').attributes('aria-hidden')).toBe('true')
   })
 
   it('toggles 朝小职 open and closed from the real assistant shell', async () => {
@@ -89,5 +135,27 @@ describe('HomeView', () => {
     await toggle.trigger('click')
     expect(toggle.attributes('aria-expanded')).toBe('false')
     expect(wrapper.find('#xiaozhi-panel').exists()).toBe(false)
+  })
+
+  it('offers accessible logout and a visible retry when server revocation is incomplete', async () => {
+    vi.spyOn(authApi, 'logout').mockRejectedValueOnce(new Error('server unavailable')).mockResolvedValueOnce()
+    const { router, store, wrapper } = await mountAuthenticatedHome()
+
+    await wrapper.get('button[aria-label="退出当前账号"]').trigger('click')
+    await flushPromises()
+
+    expect(store.isAuthenticated).toBe(false)
+    expect(store.logoutRevocationStatus).toBe('incomplete')
+    expect(router.currentRoute.value.path).toBe('/')
+    expect(wrapper.get('[role="alert"]').text()).toContain('服务器尚未确认注销')
+    const retry = wrapper.get('button[aria-label="重试服务器注销"]')
+    expect(retry.text()).toContain('重试注销')
+
+    await retry.trigger('click')
+    await flushPromises()
+
+    expect(authApi.logout).toHaveBeenCalledTimes(2)
+    expect(store.logoutRevocationStatus).toBe('idle')
+    expect(router.currentRoute.value.path).toBe('/login')
   })
 })

@@ -33,7 +33,7 @@ jobs:
         working-directory: backend
         run: |
           chmod +x mvnw
-          ./mvnw test
+          ./mvnw clean verify
 
       - name: Frontend npm ci
         working-directory: frontend
@@ -54,6 +54,12 @@ jobs:
       - name: Frontend build
         working-directory: frontend
         run: npm run build
+
+      - name: Verify checks did not mutate the checkout
+        shell: bash
+        run: |
+          git diff --exit-code
+          test -z "$(git status --porcelain --untracked-files=all)"
 
       - name: Start MySQL
         run: docker compose -f infra/compose.yaml up -d --wait

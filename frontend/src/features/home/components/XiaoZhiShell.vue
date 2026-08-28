@@ -12,23 +12,16 @@
       aria-controls="xiaozhi-panel"
       @click="isOpen = !isOpen"
     >
-      <img
-        :src="xiaozhiRobotUrl"
-        alt=""
-        aria-hidden="true"
-        loading="lazy"
-        decoding="async"
-        width="1254"
-        height="1254"
-      />
+      <XiaoZhiPetArt />
       <span>{{ isOpen ? '收起朝小职' : '朝小职' }}</span>
     </button>
   </aside>
 </template>
 
 <script setup lang="ts">
-import xiaozhiRobotUrl from '@/assets/home/optimized/xiaozhi-robot-transparent.webp'
 import { ref } from 'vue'
+
+import XiaoZhiPetArt from '@/features/home/artwork/XiaoZhiPetArt.vue'
 
 const isOpen = ref(false)
 </script>
@@ -89,7 +82,7 @@ const isOpen = ref(false)
   box-shadow: 0 15px 32px rgb(0 0 0 / 34%);
 }
 
-.xiaozhi-shell__toggle img {
+.xiaozhi-shell__toggle :deep(.home-artwork) {
   width: 42px;
   height: 42px;
   aspect-ratio: 1;
@@ -123,7 +116,7 @@ const isOpen = ref(false)
     border-radius: 15px;
   }
 
-  .xiaozhi-shell__toggle img {
+  .xiaozhi-shell__toggle :deep(.home-artwork) {
     width: 34px;
     height: 34px;
   }

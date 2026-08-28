@@ -203,8 +203,8 @@ describe('frontend auth session boundary', () => {
     expect(store.user).toBeNull()
   })
 
-  it('clears the local session even when logout fails on the server', async () => {
-    installAdapter((_config, request) => {
+  it('clears local state promptly and exposes a retryable incomplete server logout', async () => {
+    const firstRequests = installAdapter((_config, request) => {
       if (request.url === '/auth/login') {
         return ok(apiOk(loginResult('SECRET_ACCESS_LOGOUT')))
       }
@@ -216,10 +216,26 @@ describe('frontend auth session boundary', () => {
 
     const store = useAuthStore()
     await store.login('student', 'Student123!')
-    await store.logout()
+    const logout = store.logout()
 
     expect(store.accessToken).toBeNull()
     expect(store.user).toBeNull()
+    expect(store.logoutRevocationStatus).toBe('pending')
+    await expect(logout).rejects.toMatchObject({ code: 'INTERNAL_ERROR' })
+    expect(store.logoutRevocationStatus).toBe('incomplete')
+    expect(firstRequests.filter((request) => request.url === '/auth/logout')).toHaveLength(1)
+
+    const retryRequests = installAdapter((_config, request) => {
+      if (request.url === '/auth/logout') {
+        return ok(apiOk(null))
+      }
+      throw new Error(`unexpected request ${request.url}`)
+    })
+
+    await store.retryLogout()
+
+    expect(store.logoutRevocationStatus).toBe('idle')
+    expect(retryRequests.filter((request) => request.url === '/auth/logout')).toHaveLength(1)
   })
 
   it('injects the current Bearer token into ordinary API requests', async () => {
@@ -306,6 +322,45 @@ describe('frontend auth session boundary', () => {
 
     await expect(http.get('/always-401')).rejects.toMatchObject({ code: 'UNAUTHENTICATED' })
     expect(refreshCalls).toBe(1)
+  })
+
+  it('atomically signs out and navigates once when the refreshed retry is also 401', async () => {
+    let refreshCalls = 0
+    let protectedCalls = 0
+    const requests = installAdapter((_config, request) => {
+      if (request.url === '/auth/refresh') {
+        refreshCalls += 1
+        return ok(apiOk(loginResult('SECRET_ACCESS_REFRESHED')))
+      }
+      if (request.url === '/terminal-401') {
+        protectedCalls += 1
+        return { status: 401, data: apiError('UNAUTHENTICATED', 'Authentication required') }
+      }
+      throw new Error(`unexpected request ${request.url}`)
+    })
+
+    const store = useAuthStore()
+    store.acceptSession(loginResult('SECRET_ACCESS_STALE'))
+    let clearActions = 0
+    store.$onAction(({ name, after }) => {
+      if (name === 'clearSession') {
+        after(() => {
+          clearActions += 1
+        })
+      }
+    })
+    window.history.replaceState(null, '', '/jobs?filter=graduate')
+
+    await expect(http.get('/terminal-401')).rejects.toMatchObject({ code: 'UNAUTHENTICATED' })
+
+    expect(protectedCalls).toBe(2)
+    expect(refreshCalls).toBe(1)
+    expect(requests.filter((request) => request.url === '/terminal-401')).toHaveLength(2)
+    expect(requests.filter((request) => request.url === '/auth/refresh')).toHaveLength(1)
+    expect(clearActions).toBe(1)
+    expect(store.accessToken).toBeNull()
+    expect(store.user).toBeNull()
+    expect(navigateToLogin).toHaveBeenCalledExactlyOnceWith('/jobs?filter=graduate')
   })
 
   it('clears session and navigates once when a shared refresh fails', async () => {
@@ -401,6 +456,7 @@ describe('frontend auth session boundary', () => {
       expiresAt: null,
       user: null,
       restoreAttempted: true,
+      logoutRevocationStatus: 'idle',
     })
   })
 

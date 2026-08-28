@@ -7,8 +7,8 @@ const configDir = fileURLToPath(new URL('.', import.meta.url))
 const backendDir = path.resolve(configDir, '../backend')
 const backendCommand =
   process.platform === 'win32'
-    ? 'mvnw.cmd "-Dspring-boot.run.profiles=e2e" spring-boot:run'
-    : './mvnw -Dspring-boot.run.profiles=e2e spring-boot:run'
+    ? 'mvnw.cmd -Pe2e "-Dspring-boot.run.profiles=e2e" spring-boot:run'
+    : './mvnw -Pe2e -Dspring-boot.run.profiles=e2e spring-boot:run'
 
 export default defineConfig({
   testDir: './tests/e2e',
@@ -39,7 +39,7 @@ export default defineConfig({
     {
       command: backendCommand,
       cwd: backendDir,
-      url: 'http://127.0.0.1:8080/api/v1/health',
+      url: 'http://127.0.0.1:8080/actuator/health/readiness',
       reuseExistingServer: !process.env.CI,
       timeout: 120 * 1000,
     },

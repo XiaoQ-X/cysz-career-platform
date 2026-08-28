@@ -5,6 +5,7 @@ import cn.edu.cysz.careerplatform.common.web.TraceIdFilter;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
 import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -49,12 +50,21 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 		ValidationProbeController.class,
 		TraceProbeController.class,
 		AsyncTraceProbeController.class,
-		TestSecurityConfiguration.class
+		TestSecurityConfiguration.class,
+		TestReadinessConfiguration.class
 })
 class HealthControllerTest {
 
 	@Autowired
 	private MockMvc mvc;
+
+	@Autowired
+	private TestReadinessProbe readinessProbe;
+
+	@BeforeEach
+	void markReady() {
+		readinessProbe.ready = true;
+	}
 
 	@Test
 	void generatesAnEnvelopeTraceIdAndCleansMdcWhenTheClientSendsNone() throws Exception {
@@ -67,6 +77,17 @@ class HealthControllerTest {
 
 		assertEnvelopeTraceIdMatchesHeader(result);
 		assertThat(MDC.get(TraceIdFilter.MDC_KEY)).isNull();
+	}
+
+	@Test
+	void returnsServiceUnavailableInsteadOfClaimingUpBeforeReadiness() throws Exception {
+		readinessProbe.ready = false;
+
+		mvc.perform(get("/api/v1/health"))
+				.andExpect(status().isServiceUnavailable())
+				.andExpect(jsonPath("$.data.status").value("OUT_OF_SERVICE"))
+				.andExpect(jsonPath("$.traceId").isNotEmpty())
+				.andExpect(header().exists("X-Trace-Id"));
 	}
 
 	@Test
@@ -263,5 +284,24 @@ class TestSecurityConfiguration {
 				.csrf(AbstractHttpConfigurer::disable)
 				.authorizeHttpRequests(authorize -> authorize.anyRequest().permitAll())
 				.build();
+	}
+}
+
+@TestConfiguration(proxyBeanMethods = false)
+class TestReadinessConfiguration {
+
+	@Bean
+	TestReadinessProbe readinessProbe() {
+		return new TestReadinessProbe();
+	}
+}
+
+class TestReadinessProbe implements ReadinessProbe {
+
+	boolean ready = true;
+
+	@Override
+	public boolean isReady() {
+		return ready;
 	}
 }

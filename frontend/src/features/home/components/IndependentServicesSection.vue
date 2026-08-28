@@ -21,14 +21,7 @@
         </div>
       </article>
       <article class="service-option">
-        <img
-          :src="courseCubeUrl"
-          alt="发光的课程指导立方体"
-          loading="lazy"
-          decoding="async"
-          width="1254"
-          height="1254"
-        />
+        <CourseCubeArt />
         <div>
           <h3>课程指导</h3>
           <p>连接学习资源与指导老师资源</p>
@@ -41,7 +34,7 @@
 
 <script setup lang="ts">
 import assessmentCompassUrl from '@/assets/home/optimized/assessment-compass.webp'
-import courseCubeUrl from '@/assets/home/optimized/course-cube-transparent.webp'
+import CourseCubeArt from '@/features/home/artwork/CourseCubeArt.vue'
 import ComingSoonLink from '@/shared/ui/ComingSoonLink.vue'
 </script>
 
@@ -85,20 +78,18 @@ h2 {
   gap: 1.8rem;
 }
 
-.service-option img {
+.service-option img,
+.service-option :deep(.home-artwork) {
   width: 100%;
   max-height: 160px;
   height: auto;
   aspect-ratio: 6 / 5;
   object-fit: contain;
   filter: drop-shadow(0 18px 24px rgb(62 133 255 / 25%));
-  -webkit-mask-image: radial-gradient(circle at center, #000 36%, #000 50%, transparent 78%);
-  mask-image: radial-gradient(circle at center, #000 36%, #000 50%, transparent 78%);
 }
 
-.service-option:nth-child(2) img {
+.service-option:nth-child(2) :deep(.home-artwork) {
   aspect-ratio: 1;
-  filter: drop-shadow(0 18px 24px rgb(175 89 255 / 26%));
 }
 
 h3 {
@@ -136,7 +127,8 @@ h3 {
     text-align: center;
   }
 
-  .service-option img {
+  .service-option img,
+  .service-option :deep(.home-artwork) {
     width: min(70%, 220px);
     margin: 0 auto;
   }

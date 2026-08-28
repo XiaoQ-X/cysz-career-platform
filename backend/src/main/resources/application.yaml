@@ -17,3 +17,17 @@ app:
     jwt-secret: ${JWT_SIGNING_KEY:}
     refresh-cookie-secure: ${REFRESH_COOKIE_SECURE:true}
     trusted-origins: ${AUTH_TRUSTED_ORIGINS:}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+      probes:
+        enabled: true
+      group:
+        readiness:
+          include: readinessState,db

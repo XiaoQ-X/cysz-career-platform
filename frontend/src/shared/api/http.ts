@@ -84,7 +84,11 @@ http.interceptors.response.use(
   async (error: unknown) => {
     const status = responseStatus(error)
     const config = responseConfig(error)
-    if (status === 401 && config && sessionControls && !config._authRetry && !isAuthPost(config)) {
+    if (status === 401 && config && sessionControls && !isAuthPost(config)) {
+      if (config._authRetry) {
+        terminateAuthenticationOnce()
+        return Promise.reject(normalizeApiError(error))
+      }
       config._authRetry = true
       try {
         const token = await refreshAccessTokenOnce()
@@ -113,7 +117,7 @@ function refreshAccessTokenOnce() {
   refreshPromise ??= sessionControls
     .refreshSession()
     .catch((error: unknown) => {
-      navigateToLoginOnce()
+      terminateAuthenticationOnce()
       throw normalizeApiError(error)
     })
     .finally(() => {
@@ -122,7 +126,7 @@ function refreshAccessTokenOnce() {
   return refreshPromise
 }
 
-function navigateToLoginOnce() {
+function terminateAuthenticationOnce() {
   if (!sessionControls || loginNavigationSent) {
     return
   }
