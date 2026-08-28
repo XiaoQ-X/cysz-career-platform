@@ -32,7 +32,7 @@ import ComingSoonLink from '@/shared/ui/ComingSoonLink.vue'
 
 .home-header__inner {
   width: min(100% - 2.5rem, var(--content-max));
-  min-height: 76px;
+  min-height: 64px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -68,6 +68,36 @@ import ComingSoonLink from '@/shared/ui/ComingSoonLink.vue'
   display: flex;
   align-items: center;
   gap: clamp(0.85rem, 2.2vw, 2rem);
+}
+
+@media (min-width: 901px) and (max-width: 1100px) {
+  .home-header__inner {
+    gap: 1rem;
+  }
+
+  .home-brand {
+    gap: 0.5rem;
+    font-size: 0.92rem;
+  }
+
+  .home-brand__mark {
+    width: 1.9rem;
+    height: 1.9rem;
+    font-size: 0.66rem;
+  }
+
+  .home-nav {
+    gap: 0.55rem;
+  }
+
+  .home-nav__link,
+  .home-nav :deep(.coming-soon-link) {
+    font-size: 0.82rem;
+  }
+
+  .home-nav :deep(.coming-soon-link) {
+    padding-inline: 0.35rem;
+  }
 }
 
 .home-nav__link,

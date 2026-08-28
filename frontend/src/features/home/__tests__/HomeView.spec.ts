@@ -32,7 +32,13 @@ describe('HomeView', () => {
     expect(comingSoonButtons.every((button) => button.element.tagName === 'BUTTON')).toBe(true)
     expect(comingSoonButtons.every((button) => button.attributes('href') === undefined)).toBe(true)
     expect(comingSoonButtons.map((button) => button.text())).toEqual(['职业测评即将上线', '课程指导即将上线'])
-    expect(wrapper.get('nav[aria-label="主导航"] .coming-soon-link__badge').text()).toBe('即将上线')
+    expect(comingSoonButtons.every((button) => button.get('.coming-soon-link__badge').isVisible())).toBe(true)
+    expect(comingSoonButtons.every((button) => button.get('.coming-soon-link__badge').text() === '即将上线')).toBe(true)
+    expect(
+      comingSoonButtons.every(
+        (button) => window.getComputedStyle(button.get('.coming-soon-link__badge').element).display !== 'none',
+      ),
+    ).toBe(true)
     expect(wrapper.text()).not.toContain('推荐岗位')
     expect(wrapper.text()).not.toContain('校园活动')
   })
@@ -47,6 +53,8 @@ describe('HomeView', () => {
     expect(heroRobot.attributes('fetchpriority')).toBe('high')
     expect(heroCosmos.attributes('loading')).toBeUndefined()
     expect(heroRobot.attributes('loading')).toBeUndefined()
+    expect(heroCosmos.attributes('src')).toMatch(/\/optimized\/[^/]+\.webp(?:$|[?#])/i)
+    expect(heroRobot.attributes('src')).toMatch(/\/optimized\/[^/]+\.webp(?:$|[?#])/i)
 
     const lazyArtworkSelectors = [
       '.entry-option--blue img',
@@ -63,6 +71,7 @@ describe('HomeView', () => {
       expect(image.attributes('decoding')).toBe('async')
       expect(Number(image.attributes('width'))).toBeGreaterThan(0)
       expect(Number(image.attributes('height'))).toBeGreaterThan(0)
+      expect(image.attributes('src')).toMatch(/\/optimized\/[^/]+\.webp(?:$|[?#])/i)
     }
   })
 

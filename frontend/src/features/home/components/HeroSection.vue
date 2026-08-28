@@ -38,7 +38,7 @@ function scrollToEntry() {
 <style scoped>
 .hero-section {
   position: relative;
-  min-height: 620px;
+  min-height: 390px;
   display: grid;
   align-items: center;
   overflow: hidden;
@@ -51,6 +51,7 @@ function scrollToEntry() {
   z-index: -2;
   width: 100%;
   height: 100%;
+  aspect-ratio: 1672 / 941;
   object-fit: cover;
   object-position: center;
   opacity: 0.82;
@@ -67,7 +68,7 @@ function scrollToEntry() {
 .hero-section__content {
   width: min(100% - 2.5rem, var(--content-max));
   margin: 0 auto;
-  padding: 5.5rem 0 4.5rem;
+  padding: 3rem 0 2.5rem;
 }
 
 .eyebrow {
@@ -103,7 +104,7 @@ h1 span {
 
 .hero-section__companion {
   position: absolute;
-  top: 11.6rem;
+  top: 7rem;
   right: max(12rem, calc((100vw - var(--content-max)) / 2 + 2rem));
   margin: 0;
   padding: 0.85rem 1.15rem;
@@ -129,13 +130,15 @@ h1 span {
   position: absolute;
   right: max(2rem, calc((100vw - var(--content-max)) / 2));
   bottom: 1.6rem;
-  width: min(17vw, 180px);
+  width: min(22vw, 220px);
   animation: hero-float 5s ease-in-out infinite;
   filter: drop-shadow(0 20px 28px rgb(42 123 255 / 22%));
 }
 
 .hero-section__robot img {
   width: 100%;
+  height: auto;
+  aspect-ratio: 1;
   -webkit-mask-image: radial-gradient(circle at center, #000 40%, #000 55%, transparent 82%);
   mask-image: radial-gradient(circle at center, #000 40%, #000 55%, transparent 82%);
 }

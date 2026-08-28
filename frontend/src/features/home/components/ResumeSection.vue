@@ -39,7 +39,7 @@ import resumeOrbitUrl from '@/assets/home/optimized/resume-orbit.webp'
 
 .resume-section__inner {
   width: min(100% - 2.5rem, var(--content-max));
-  min-height: 480px;
+  min-height: 320px;
   display: grid;
   grid-template-columns: minmax(260px, 0.8fr) minmax(0, 1.4fr);
   align-items: center;
@@ -89,8 +89,9 @@ h2 {
 
 .resume-section__visual img {
   width: 100%;
-  max-height: 410px;
+  max-height: 285px;
   height: auto;
+  aspect-ratio: 3 / 2;
   object-fit: contain;
 }
 

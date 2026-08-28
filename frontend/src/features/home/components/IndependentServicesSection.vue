@@ -49,11 +49,11 @@ import ComingSoonLink from '@/shared/ui/ComingSoonLink.vue'
 .page-section {
   width: min(100% - 2.5rem, var(--content-max));
   margin: 0 auto;
-  padding: clamp(4rem, 8vw, 6.5rem) 0;
+  padding: 1rem 0;
 }
 
 .section-heading {
-  margin-bottom: 3.2rem;
+  margin-bottom: 1rem;
   text-align: center;
 }
 
@@ -87,8 +87,9 @@ h2 {
 
 .service-option img {
   width: 100%;
-  max-height: 220px;
+  max-height: 160px;
   height: auto;
+  aspect-ratio: 6 / 5;
   object-fit: contain;
   filter: drop-shadow(0 18px 24px rgb(62 133 255 / 25%));
   -webkit-mask-image: radial-gradient(circle at center, #000 36%, #000 50%, transparent 78%);
@@ -96,6 +97,7 @@ h2 {
 }
 
 .service-option:nth-child(2) img {
+  aspect-ratio: 1;
   filter: drop-shadow(0 18px 24px rgb(175 89 255 / 26%));
 }
 

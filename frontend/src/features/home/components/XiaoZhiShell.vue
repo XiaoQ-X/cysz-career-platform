@@ -92,6 +92,7 @@ const isOpen = ref(false)
 .xiaozhi-shell__toggle img {
   width: 42px;
   height: 42px;
+  aspect-ratio: 1;
   object-fit: contain;
 }
 

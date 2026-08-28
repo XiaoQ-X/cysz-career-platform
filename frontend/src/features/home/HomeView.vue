@@ -41,7 +41,7 @@ import SkipLink from '@/shared/ui/SkipLink.vue'
 }
 
 .home-footer {
-  padding: 2.5rem 1.25rem 5rem;
+  padding: 1rem 1.25rem 1.5rem;
   border-top: 1px solid rgb(157 190 255 / 11%);
   color: var(--color-text-muted);
   text-align: center;

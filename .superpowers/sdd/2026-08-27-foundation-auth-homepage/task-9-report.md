@@ -81,18 +81,55 @@
 - Browser keyboard-focus state did not surface as a distinct active element in the in-app browser automation surface, so the skip-link contract is additionally covered by the unit regression.
 
 ## Fix Round 1
-- Covering test: `npm run test:unit -- HomeView.spec.ts --run`
-  - Result: passed (3 tests).
-- Browser QA: `npm run dev -- --host 0.0.0.0 --port 4173 --strictPort`, then in-app Browser on the temporary `qa.html` harness.
-  - Evidence paths:
+- Scope: addressed the 4 Important review findings and 1 Minor review finding from `task-9-review.md` without adding new visual design or experimental screenshots.
+
+### Review item evidence
+- Important: header disabled nav entries hid the visible `即将上线` status.
+  - Fix: `HomeHeader.vue` keeps `职业测评` and `课程指导` as disabled `ComingSoonLink` buttons and styles the inline `.coming-soon-link__badge` visibly in the primary nav.
+  - Evidence: `HomeView.spec.ts` asserts two disabled nav buttons, no `href`, visible badge elements, and exact `即将上线` text.
+- Important: automated DOM contract did not cover routes, disabled badge state, skip link, or `朝小职`.
+  - Fix: `HomeView.spec.ts` now mounts the real `HomeView` with the real router and Pinia, then asserts `/resume`, `/job-preferences`, `/jobs`, `#main-content`, disabled coming-soon controls, and `朝小职` open / close via `aria-expanded` and `#xiaozhi-panel`.
+  - Evidence: focused unit output: `Test Files 1 passed (1); Tests 3 passed (3)`.
+- Important: homepage image payload and loading behavior needed tightening.
+  - Fix: transparent runtime art imports use optimized WebP assets; hero images keep `fetchpriority="high"`; below-fold and assistant-toggle artwork uses `loading="lazy"`, `decoding="async"`, and explicit `width` / `height`.
+  - Evidence: `HomeView.spec.ts` asserts optimized WebP sources and loading attributes. Build output includes WebP assets only for the repaired transparent art: 74.64 kB, 110.71 kB, 138.01 kB, and 140.59 kB.
+- Important: durable QA comparison evidence was incomplete.
+  - Fix: retained final artifacts only:
     - `frontend/.qa-artifacts/task-9-desktop-910.png`
     - `frontend/.qa-artifacts/task-9-narrow-390.png`
-  - Result: final browser logs empty; `朝小职` open/close verified; skipped-link target kept intact; temporary harness deleted after capture.
-- Fixes applied in this round:
-  - Swapped the oversized opaque WebP exports for transparent repair-derived WebPs.
-  - Reduced the hero assistant scale and repositioned it to restore the source composition.
-  - Rebuilt the QA harness with real memory history so the production guard stayed in play without route warnings.
-- Self-review:
-  - Navigation badges remain visible, disabled, and non-navigable.
-  - Below-fold artwork now lazy-loads with reserved dimensions.
-  - The temporary harness was removed after screenshots were saved.
+    - `frontend/.qa-artifacts/task-9-comparison-full.png`
+    - `frontend/.qa-artifacts/task-9-comparison-focused.png`
+    - `frontend/.qa-artifacts/task-9-comparison-round1.png`
+  - Evidence: `frontend/design-qa.md` now records source image, implementation screenshots, CSS viewport, captured pixel dimensions, deviceScaleFactor, file sizes, state, full/focused comparison artifacts, review-round finding/fix/evidence, interaction checks, and console status.
+- Minor: unused transparent PNG sources bloated the repo.
+  - Fix: deleted:
+    - `frontend/src/assets/home/xiaozhi-robot-transparent.png`
+    - `frontend/src/assets/home/holographic-resume-transparent.png`
+    - `frontend/src/assets/home/career-target-transparent.png`
+    - `frontend/src/assets/home/course-cube-transparent.png`
+  - Evidence: `rg -n "transparent\\.png|qa-main|qa\\.html" frontend\\src` produced no output after temporary QA cleanup.
+
+### Cleanup
+- Deleted intermediate QA screenshots: all dot-prefixed task-9 screenshots plus segmented, calibrated, repair-check, full-round1/full, and non-final round1 desktop captures.
+- Deleted temporary QA harness files:
+  - `frontend/.qa-fix-transparent-assets.py`
+  - `frontend/qa.html`
+  - `frontend/src/qa-main.ts`
+- Kept the five final QA artifacts listed above.
+
+### Commands and output
+- `npm run test:unit -- HomeView.spec.ts --run`
+  - Output summary: `Test Files 1 passed (1); Tests 3 passed (3); Duration 2.68s`.
+- `npm run test:unit -- --run`
+  - Output summary: `Test Files 7 passed (7); Tests 34 passed (34); Duration 2.76s`.
+- `npm run build`
+  - Output summary: `vue-tsc --build` passed; `vite build` passed; `134 modules transformed`; final JS gzip `62.54 kB`; repaired transparent WebP assets emitted at `74.64 kB`, `110.71 kB`, `138.01 kB`, and `140.59 kB`.
+- `npx oxlint .`
+  - Output summary: passed with no output.
+- `npx eslint . --cache`
+  - Output summary: passed with no output.
+- `git diff --check`
+  - Output summary: passed with no output.
+
+### Final QA status
+- `frontend/design-qa.md` records `final result: passed`, backed by the retained screenshots, comparison artifacts, regression tests, browser interaction checks, and empty final browser console.

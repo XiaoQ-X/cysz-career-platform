@@ -55,12 +55,12 @@ import holographicResumeUrl from '@/assets/home/optimized/holographic-resume-tra
 .page-section {
   width: min(100% - 2.5rem, var(--content-max));
   margin: 0 auto;
-  padding: clamp(4rem, 8vw, 7rem) 0;
+  padding: 1rem 0;
 }
 
 .section-heading {
   max-width: 760px;
-  margin: 0 auto 3.4rem;
+  margin: 0 auto 1rem;
   text-align: center;
 }
 
@@ -92,7 +92,7 @@ h2 {
 }
 
 .entry-option {
-  min-height: 390px;
+  min-height: 250px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -104,9 +104,9 @@ h2 {
   width: min(100%, 280px);
   height: auto;
   aspect-ratio: 1;
-  max-height: 220px;
+  max-height: 160px;
   object-fit: contain;
-  margin-bottom: 1.25rem;
+  margin-bottom: 0.75rem;
   filter: drop-shadow(0 24px 28px rgb(34 113 255 / 25%));
   -webkit-mask-image: radial-gradient(circle at center, #000 36%, #000 50%, transparent 78%);
   mask-image: radial-gradient(circle at center, #000 36%, #000 50%, transparent 78%);
@@ -159,7 +159,7 @@ h3 {
 }
 
 .browse-link {
-  margin: 3.5rem auto 1.4rem;
+  margin: 1rem auto 0.6rem;
   border-color: rgb(146 164 220 / 48%);
   background: rgb(16 29 67 / 72%);
 }
@@ -173,7 +173,7 @@ h3 {
 }
 
 .entry-note {
-  margin-top: 3.2rem;
+  margin-top: 1rem;
   color: #e7eaff;
   font-size: 1.05rem;
 }
